@@ -86,6 +86,28 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.43)
 
+  packages/economy:
+    dependencies:
+      '@railway/game-data':
+        specifier: workspace:*
+        version: link:../game-data
+      '@railway/shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@20.19.43)
+
   packages/fleet:
     dependencies:
       '@railway/game-data':
@@ -179,6 +201,37 @@ importers:
 
   packages/shared:
     dependencies:
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@20.19.43)
+
+  packages/timetable:
+    dependencies:
+      '@railway/fleet':
+        specifier: workspace:*
+        version: link:../fleet
+      '@railway/game-data':
+        specifier: workspace:*
+        version: link:../game-data
+      '@railway/network':
+        specifier: workspace:*
+        version: link:../network
+      '@railway/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@railway/workforce':
+        specifier: workspace:*
+        version: link:../workforce
       zod:
         specifier: ^3.23.8
         version: 3.25.76
