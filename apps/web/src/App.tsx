@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { GameState, SimulationSpeed, SimulationEngine } from '@railway/simulation';
 import { createInitialWebGameState, DEFAULT_WEB_CONFIG } from './gameStateInit';
 import { MobileHeader } from './components/MobileHeader';
-import { MobileBottomDock, MobileTab } from './components/MobileBottomDock';
+import { FloatingActionDock, FloatingTab } from './components/FloatingActionDock';
 import { NetworkMapScreen } from './components/NetworkMapScreen';
 import { TimetableScreen } from './components/TimetableScreen';
 import { FleetScreen } from './components/FleetScreen';
@@ -11,14 +11,15 @@ import { ManagementHubScreen } from './components/ManagementHubScreen';
 import { ProcurementOrderEntity } from '@railway/procurement';
 import { JAVA_ROLLING_STOCK_CATALOG } from '@railway/game-data';
 import { createBrandedId, createGameTimestamp, toMoney, OrderId, TransactionId } from '@railway/shared';
-import { Smartphone, Monitor } from 'lucide-react';
+import { Smartphone, Monitor, X } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(() => createInitialWebGameState());
-  const [activeTab, setActiveTab] = useState<MobileTab>('network');
+  const [activeTab, setActiveTab] = useState<FloatingTab>('network');
+  const [isSheetOpen, setIsSheetOpen] = useState<boolean>(false);
   const [isDeviceFrameMode, setIsDeviceFrameMode] = useState<boolean>(true);
   const [tickerMessage, setTickerMessage] = useState<string | null>(
-    'Lintas Gambir - Bandung siap diberangkatkan! Tap Dispatch untuk mulai.'
+    'Peta Operasi OpenStreetMap aktif! Tap stasiun atau kereta di peta untuk inspeksi.'
   );
 
   const engine = useMemo(() => new SimulationEngine(), []);
@@ -77,7 +78,7 @@ export const App: React.FC = () => {
     if (availableSlot) {
       handleDispatchSlot(availableSlot.id);
     } else {
-      setTickerMessage('Semua armada kereta sedang aktif berjalan.');
+      setTickerMessage('Semua armada kereta sedang aktif di lintas.');
     }
   }, [gameState.timetableSlots, gameState.activeServices, handleDispatchSlot]);
 
@@ -120,7 +121,7 @@ export const App: React.FC = () => {
           description: `Uang Muka Pemesanan ${quantity}x ${spec.modelName} ke pabrikan INKA`,
         });
 
-        setTickerMessage(`Pesanan ${quantity}x ${spec.modelName} berhasil masuk antrean pabrik INKA!`);
+        setTickerMessage(`Pesanan ${quantity}x ${spec.modelName} masuk antrean pabrik INKA!`);
         return {
           ...prev,
           procurementOrders: Object.freeze([...prev.procurementOrders, newOrder]),
@@ -129,6 +130,21 @@ export const App: React.FC = () => {
     },
     [gameState.generalLedger]
   );
+
+  // Toggle Tab from Floating Action Dock
+  const handleToggleTab = (tab: FloatingTab) => {
+    if (tab === 'network') {
+      setIsSheetOpen(false);
+      setActiveTab('network');
+    } else {
+      if (activeTab === tab && isSheetOpen) {
+        setIsSheetOpen(false);
+      } else {
+        setActiveTab(tab);
+        setIsSheetOpen(true);
+      }
+    }
+  };
 
   // Real-time interval driver based on simulation speed
   useEffect(() => {
@@ -152,11 +168,9 @@ export const App: React.FC = () => {
     return () => clearInterval(timer);
   }, [gameState.speed, engine]);
 
-  // Screen Tab renderer
-  const renderScreen = () => {
+  // Render Drawer Sheet Content
+  const renderDrawerContent = () => {
     switch (activeTab) {
-      case 'network':
-        return <NetworkMapScreen state={gameState} onDispatchSlot={handleDispatchSlot} />;
       case 'timetable':
         return <TimetableScreen state={gameState} onDispatchSlot={handleDispatchSlot} />;
       case 'fleet':
@@ -166,7 +180,22 @@ export const App: React.FC = () => {
       case 'hub':
         return <ManagementHubScreen state={gameState} />;
       default:
-        return <NetworkMapScreen state={gameState} onDispatchSlot={handleDispatchSlot} />;
+        return null;
+    }
+  };
+
+  const getSheetTitle = () => {
+    switch (activeTab) {
+      case 'timetable':
+        return 'Pusat Jadwal & Dispatch KA';
+      case 'fleet':
+        return 'Dipo & Formasi Rangkaian';
+      case 'procurement':
+        return 'Pabrik Sarana & Showroom INKA';
+      case 'hub':
+        return 'Kantor Pusat Direksi';
+      default:
+        return '';
     }
   };
 
@@ -211,7 +240,7 @@ export const App: React.FC = () => {
 
         {/* Operational Ticker Banner */}
         {tickerMessage && (
-          <div className="bg-[#0F172A] border-b border-[#1E293B] px-3 py-1 flex items-center justify-between text-[11px] font-mono text-slate-300 shrink-0">
+          <div className="bg-[#0F172A] border-b border-[#1E293B] px-3 py-1 flex items-center justify-between text-[11px] font-mono text-slate-300 shrink-0 z-20">
             <div className="flex items-center space-x-1.5 truncate">
               <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] shrink-0" />
               <span className="truncate">{tickerMessage}</span>
@@ -225,18 +254,49 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Active Screen View */}
+        {/* Primary Screen: Operations Map (ALWAYS the root canvas!) */}
         <main className="flex-1 flex flex-col overflow-hidden relative">
-          {renderScreen()}
-        </main>
+          <NetworkMapScreen state={gameState} onDispatchSlot={handleDispatchSlot} />
 
-        {/* Mobile Game Bottom Dock */}
-        <MobileBottomDock
-          activeTab={activeTab}
-          onSelectTab={setActiveTab}
-          unfulfilledContractsCount={gameState.b2bContracts.length}
-          activeMissionsCount={2}
-        />
+          {/* Slide-Up Drawer Modal Sheet (when a non-map tab is active) */}
+          {isSheetOpen && activeTab !== 'network' && (
+            <div className="absolute inset-0 z-40 bg-black/60 backdrop-blur-sm flex flex-col justify-end animate-in fade-in duration-200">
+              {/* Sheet Card Container */}
+              <div className="w-full max-h-[85vh] h-[85vh] bg-[#020617] rounded-t-3xl border-t border-[#334155] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300">
+                {/* Sheet Drag Handle & Header */}
+                <div className="px-4 pt-3 pb-2.5 bg-[#0F172A] border-b border-[#1E293B] flex items-center justify-between shrink-0 select-none">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#F97316]" />
+                    <h3 className="font-bold text-sm text-white font-mono">
+                      {getSheetTitle()}
+                    </h3>
+                  </div>
+
+                  <button
+                    onClick={() => setIsSheetOpen(false)}
+                    className="w-7 h-7 rounded-full bg-[#1E293B] hover:bg-[#334155] text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Sheet Scrollable Body */}
+                <div className="flex-1 flex flex-col overflow-y-auto">
+                  {renderDrawerContent()}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Floating Action Dock: Bottom Right Aligned, Icon Only (No Text!) */}
+          <FloatingActionDock
+            activeTab={activeTab}
+            isSheetOpen={isSheetOpen}
+            onToggleTab={handleToggleTab}
+            unfulfilledContractsCount={gameState.b2bContracts.length}
+            activeMissionsCount={2}
+          />
+        </main>
       </div>
     </div>
   );
