@@ -185,7 +185,7 @@ export class RollingStockUnitEntity {
     const distanceVal = distanceKm as number;
     this._odometerKm = toKm((this._odometerKm as number) + distanceVal);
     this._kmSinceLastMaintenance = toKm((this._kmSinceLastMaintenance as number) + distanceVal);
-    this._conditionPercentage = Math.max(0, Math.round((this._conditionPercentage - conditionLossPercentage) * 100) / 100);
+    this._conditionPercentage = Math.max(0, Math.round((this._conditionPercentage - conditionLossPercentage) * 10000) / 10000);
   }
 
   /**

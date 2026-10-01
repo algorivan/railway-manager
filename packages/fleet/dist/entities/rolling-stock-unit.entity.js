@@ -117,7 +117,7 @@ export class RollingStockUnitEntity {
         const distanceVal = distanceKm;
         this._odometerKm = toKm(this._odometerKm + distanceVal);
         this._kmSinceLastMaintenance = toKm(this._kmSinceLastMaintenance + distanceVal);
-        this._conditionPercentage = Math.max(0, Math.round((this._conditionPercentage - conditionLossPercentage) * 100) / 100);
+        this._conditionPercentage = Math.max(0, Math.round((this._conditionPercentage - conditionLossPercentage) * 10000) / 10000);
     }
     /**
      * Transfers current physical depot location.

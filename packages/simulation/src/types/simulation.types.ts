@@ -9,7 +9,7 @@ import {
 } from '@railway/shared';
 import { RollingStockUnitEntity, TrainCompositionEntity } from '@railway/fleet';
 import { ProcurementOrderEntity } from '@railway/procurement';
-import { DepotEntity } from '@railway/network';
+import { DepotEntity, RouteEntity } from '@railway/network';
 import { EmployeeEntity } from '@railway/workforce';
 import {
   B2BContractEntity,
@@ -75,6 +75,7 @@ export interface GameState {
   readonly psoContracts: ReadonlyArray<PublicServiceObligationContractEntity>;
   readonly charterContracts: ReadonlyArray<CharterContractEntity>;
   readonly generalLedger: GeneralLedgerEntity;
+  readonly routes?: ReadonlyArray<RouteEntity>;
   readonly reputation: number; // 0.0 .. 1.0
   readonly consecutiveCriticalInsolventDays: number;
   readonly solvencyStatus: SolvencyStatus;
