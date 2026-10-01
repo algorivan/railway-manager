@@ -1,25 +1,24 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { GameState, SimulationSpeed, SimulationEngine } from '@railway/simulation';
 import { createInitialWebGameState, DEFAULT_WEB_CONFIG } from './gameStateInit';
-import { TopStatusBar } from './components/TopStatusBar';
-import { Sidebar, ScreenTab } from './components/Sidebar';
+import { MobileHeader } from './components/MobileHeader';
+import { MobileBottomDock, MobileTab } from './components/MobileBottomDock';
 import { NetworkMapScreen } from './components/NetworkMapScreen';
 import { TimetableScreen } from './components/TimetableScreen';
 import { FleetScreen } from './components/FleetScreen';
 import { ProcurementScreen } from './components/ProcurementScreen';
-import { FinanceScreen } from './components/FinanceScreen';
-import { MissionsScreen } from './components/MissionsScreen';
-import { WorkforceScreen } from './components/WorkforceScreen';
-import { ContractsScreen } from './components/ContractsScreen';
+import { ManagementHubScreen } from './components/ManagementHubScreen';
 import { ProcurementOrderEntity } from '@railway/procurement';
 import { JAVA_ROLLING_STOCK_CATALOG } from '@railway/game-data';
 import { createBrandedId, createGameTimestamp, toMoney, OrderId, TransactionId } from '@railway/shared';
+import { Smartphone, Monitor } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(() => createInitialWebGameState());
-  const [activeTab, setActiveTab] = useState<ScreenTab>('network');
-  const [recentNotification, setRecentNotification] = useState<string | null>(
-    'Selamat datang di Railway Network Manager Indonesia! Jalur Gambir - Bandung siap diberangkatkan.'
+  const [activeTab, setActiveTab] = useState<MobileTab>('network');
+  const [isDeviceFrameMode, setIsDeviceFrameMode] = useState<boolean>(true);
+  const [tickerMessage, setTickerMessage] = useState<string | null>(
+    'Lintas Gambir - Bandung siap diberangkatkan! Tap Dispatch untuk mulai.'
   );
 
   const engine = useMemo(() => new SimulationEngine(), []);
@@ -40,7 +39,7 @@ export const App: React.FC = () => {
         }
         return { ...curr, speed: prev.speed };
       });
-      setRecentNotification(`Simulasi dimajukan ${minutes} menit.`);
+      setTickerMessage(`Simulasi dimajukan +${minutes} menit.`);
     },
     [engine]
   );
@@ -55,7 +54,6 @@ export const App: React.FC = () => {
         const isRunning = prev.activeServices.some((s) => s.timetableSlotId === slotId);
         if (isRunning) return prev;
 
-        // Run tick with DISPATCH_SERVICE action
         const wasPaused = prev.speed === 'PAUSED';
         const res = engine.simulateTick(
           { ...prev, speed: wasPaused ? '1X' : prev.speed },
@@ -64,7 +62,7 @@ export const App: React.FC = () => {
           2026
         );
 
-        setRecentNotification(`KA ${slot.routeId} berhasil diberangkatkan dari stasiun awal.`);
+        setTickerMessage(`KA ${slot.routeId} berhasil meluncur ke lintas!`);
         return { ...res.nextState, speed: wasPaused ? 'PAUSED' : prev.speed };
       });
     },
@@ -79,7 +77,7 @@ export const App: React.FC = () => {
     if (availableSlot) {
       handleDispatchSlot(availableSlot.id);
     } else {
-      setRecentNotification('Semua armada kereta api sedang aktif dalam perjalanan.');
+      setTickerMessage('Semua armada kereta sedang aktif berjalan.');
     }
   }, [gameState.timetableSlots, gameState.activeServices, handleDispatchSlot]);
 
@@ -98,7 +96,6 @@ export const App: React.FC = () => {
       }
 
       setGameState((prev) => {
-        // Record procurement order
         const newOrder = new ProcurementOrderEntity({
           id: createBrandedId<OrderId>(`ORD_${Date.now()}`),
           companyId: prev.companyId,
@@ -114,7 +111,6 @@ export const App: React.FC = () => {
           status: 'ORDERED',
         });
 
-        // Deduct payment via ledger
         prev.generalLedger.postTransaction({
           id: createBrandedId<TransactionId>(`TX_${Date.now()}`),
           companyId: prev.companyId,
@@ -124,7 +120,7 @@ export const App: React.FC = () => {
           description: `Uang Muka Pemesanan ${quantity}x ${spec.modelName} ke pabrikan INKA`,
         });
 
-        setRecentNotification(`Pemesanan ${quantity} unit ${spec.modelName} berhasil diajukan.`);
+        setTickerMessage(`Pesanan ${quantity}x ${spec.modelName} berhasil masuk antrean pabrik INKA!`);
         return {
           ...prev,
           procurementOrders: Object.freeze([...prev.procurementOrders, newOrder]),
@@ -167,59 +163,80 @@ export const App: React.FC = () => {
         return <FleetScreen state={gameState} />;
       case 'procurement':
         return <ProcurementScreen state={gameState} onOrderSpec={handleOrderSpec} />;
-      case 'finance':
-        return <FinanceScreen state={gameState} />;
-      case 'missions':
-        return <MissionsScreen state={gameState} />;
-      case 'workforce':
-        return <WorkforceScreen state={gameState} />;
-      case 'contracts':
-        return <ContractsScreen state={gameState} />;
+      case 'hub':
+        return <ManagementHubScreen state={gameState} />;
       default:
         return <NetworkMapScreen state={gameState} onDispatchSlot={handleDispatchSlot} />;
     }
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#020617] font-sans antialiased text-slate-100">
-      {/* Top Global Status Bar */}
-      <TopStatusBar
-        state={gameState}
-        onSetSpeed={handleSetSpeed}
-        onStepMinutes={handleStepMinutes}
-        onQuickDispatch={handleQuickDispatch}
-      />
+    <div className="min-h-screen w-screen bg-[#020617] flex items-center justify-center overflow-hidden">
+      {/* Desktop Device Mode Toggle Bar (Floating subtle on top-right for desktop users) */}
+      <div className="fixed top-3 right-3 z-50 hidden md:flex items-center space-x-1.5 bg-[#0F172A]/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-[#334155] shadow-lg">
+        <button
+          onClick={() => setIsDeviceFrameMode((prev) => !prev)}
+          className="text-xs font-mono text-slate-300 hover:text-white flex items-center space-x-1"
+          title="Toggle tampilan frame smartphone"
+        >
+          {isDeviceFrameMode ? (
+            <>
+              <Monitor className="w-3.5 h-3.5 text-[#0EA5E9]" />
+              <span>Layar Lebar</span>
+            </>
+          ) : (
+            <>
+              <Smartphone className="w-3.5 h-3.5 text-[#F97316]" />
+              <span>Frame HP</span>
+            </>
+          )}
+        </button>
+      </div>
 
-      {/* Main Layout: Sidebar Navigation + Active Screen Canvas */}
-      <div className="flex-1 flex overflow-hidden">
-        <Sidebar
+      {/* Main Container: Mobile Frame on Desktop or Full Responsive on Mobile */}
+      <div
+        className={`w-full h-screen flex flex-col bg-[#020617] relative overflow-hidden transition-all duration-300 ${
+          isDeviceFrameMode
+            ? 'max-w-md h-[92vh] max-h-[880px] rounded-3xl border-2 border-[#1E293B] shadow-[0_0_60px_rgba(249,115,22,0.15)] ring-1 ring-slate-800'
+            : 'max-w-none'
+        }`}
+      >
+        {/* Mobile Top HUD */}
+        <MobileHeader
+          state={gameState}
+          onSetSpeed={handleSetSpeed}
+          onStepMinutes={handleStepMinutes}
+          onQuickDispatch={handleQuickDispatch}
+        />
+
+        {/* Operational Ticker Banner */}
+        {tickerMessage && (
+          <div className="bg-[#0F172A] border-b border-[#1E293B] px-3 py-1 flex items-center justify-between text-[11px] font-mono text-slate-300 shrink-0">
+            <div className="flex items-center space-x-1.5 truncate">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] shrink-0" />
+              <span className="truncate">{tickerMessage}</span>
+            </div>
+            <button
+              onClick={() => setTickerMessage(null)}
+              className="text-slate-500 hover:text-white ml-2 text-xs"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Active Screen View */}
+        <main className="flex-1 flex flex-col overflow-hidden relative">
+          {renderScreen()}
+        </main>
+
+        {/* Mobile Game Bottom Dock */}
+        <MobileBottomDock
           activeTab={activeTab}
           onSelectTab={setActiveTab}
           unfulfilledContractsCount={gameState.b2bContracts.length}
-          activeAlertsCount={gameState.activeServices.length > 0 ? 1 : 0}
+          activeMissionsCount={2}
         />
-
-        {/* Screen View Container */}
-        <main className="flex-1 flex flex-col overflow-hidden relative">
-          {/* Notification / Dispatch ticker bar */}
-          {recentNotification && (
-            <div className="bg-[#1E293B] border-b border-[#334155] px-6 py-1.5 flex items-center justify-between text-xs font-mono text-slate-300">
-              <div className="flex items-center space-x-2 truncate">
-                <span className="w-2 h-2 rounded-full bg-[#10B981] shrink-0" />
-                <span className="text-[#F97316] font-bold">INFO OPERASIONAL:</span>
-                <span className="truncate">{recentNotification}</span>
-              </div>
-              <button
-                onClick={() => setRecentNotification(null)}
-                className="text-slate-400 hover:text-white text-xs ml-4"
-              >
-                ✕
-              </button>
-            </div>
-          )}
-
-          {renderScreen()}
-        </main>
       </div>
     </div>
   );
