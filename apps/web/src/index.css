@@ -1,0 +1,51 @@
+:root {
+  --color-canvas: #020617;
+  --color-panel: #0F172A;
+  --color-surface: #1E293B;
+  --color-border: #334155;
+  --color-orange: #F97316;
+  --color-orange-hover: #EA580C;
+  --color-emerald: #10B981;
+  --color-rose: #EF4444;
+  --color-amber: #F59E0B;
+  --color-sky: #0EA5E9;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', Menlo, Monaco, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: #F8FAFC;
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  user-select: none;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0F172A;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}

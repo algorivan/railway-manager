@@ -20,8 +20,15 @@
     "@railway/network": "workspace:*",
     "@railway/shared": "workspace:*",
     "@types/node": "^20.14.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "lucide-react": "^1.49.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "turbo": "^2.1.0",
     "typescript": "^5.5.0",
+    "vite": "^8.3.1",
     "vitest": "^2.0.0",
     "zod": "^3.23.8"
   }
