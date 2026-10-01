@@ -10,13 +10,8 @@ import {
   Briefcase,
   CheckCircle2,
   Lock,
-  Clock,
   Sparkles,
   Coffee,
-  ArrowRight,
-  TrendingUp,
-  ShieldCheck,
-  Box,
 } from 'lucide-react';
 
 interface ManagementHubScreenProps {
@@ -33,51 +28,13 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
   const fleetCount = state.fleetUnits.length;
 
   return (
-    <div className="flex-1 flex flex-col p-4 pb-28 overflow-y-auto bg-[#020617] text-slate-100 select-none">
-      {/* HQ Header Card */}
-      <div className="bg-gradient-to-r from-[#0F172A] via-[#1E293B] to-[#0F172A] p-4 rounded-2xl border border-[#334155] shadow-xl relative overflow-hidden mb-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-[#F97316] to-amber-500 flex items-center justify-center text-2xl shadow-lg border border-amber-300/40">
-              🏢
-            </div>
-            <div>
-              <div className="text-[10px] font-mono uppercase tracking-widest text-[#F97316] font-bold">
-                KANTOR PUSAT • DIREKSI
-              </div>
-              <h2 className="text-base font-black text-white leading-tight">
-                Manajemen PT KAI Persero
-              </h2>
-              <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                Wilayah Operasi: Lintas Pulau Jawa
-              </div>
-            </div>
-          </div>
-
-          <div className="text-right">
-            <div className="text-[10px] uppercase font-mono text-slate-400 font-semibold">
-              Kesehatan Kas
-            </div>
-            <div
-              className="text-xs font-mono font-bold px-2 py-0.5 rounded-full inline-block mt-0.5 border"
-              style={{
-                backgroundColor: financeVm.solvencyBadge.bgHex,
-                color: financeVm.solvencyBadge.colorHex,
-                borderColor: financeVm.solvencyBadge.colorHex + '50',
-              }}
-            >
-              {financeVm.solvencyBadge.label}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Segmented Sub-Nav Pills (Mobile App Style) */}
-      <div className="grid grid-cols-4 gap-1.5 p-1 bg-[#0F172A] rounded-xl border border-[#334155]/80 mb-4 text-xs font-bold">
+    <div className="flex-1 flex flex-col text-slate-800 select-none">
+      {/* Segmented Sub-Nav Pills */}
+      <div className="grid grid-cols-4 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200 mb-3 text-xs font-semibold">
         {[
           { id: 'missions' as HubSection, label: 'Misi', icon: Trophy, count: 2 },
           { id: 'finance' as HubSection, label: 'Keuangan', icon: CircleDollarSign },
-          { id: 'workforce' as HubSection, label: 'Masinis', icon: Users, count: state.employees.length },
+          { id: 'workforce' as HubSection, label: 'Kru', icon: Users, count: state.employees.length },
           { id: 'contracts' as HubSection, label: 'Kargo', icon: Briefcase, count: state.b2bContracts.length },
         ].map((sec) => {
           const Icon = sec.icon;
@@ -86,19 +43,19 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
             <button
               key={sec.id}
               onClick={() => setActiveSection(sec.id)}
-              className={`py-2 px-1 rounded-lg flex flex-col items-center justify-center transition-all ${
+              className={`py-1.5 px-1 rounded-lg flex flex-col items-center justify-center transition-all ${
                 isActive
-                  ? 'bg-gradient-to-b from-[#F97316] to-[#EA580C] text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-[#1E293B]/60'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Icon className="w-4 h-4 mb-0.5" />
+              <Icon className="w-3.5 h-3.5 mb-0.5" />
               <div className="flex items-center space-x-1">
                 <span className="text-[11px]">{sec.label}</span>
                 {sec.count !== undefined && sec.count > 0 && (
                   <span
                     className={`text-[9px] px-1 py-0.1 rounded-full font-mono ${
-                      isActive ? 'bg-white text-orange-600' : 'bg-slate-700 text-slate-300'
+                      isActive ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-700'
                     }`}
                   >
                     {sec.count}
@@ -110,15 +67,15 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
         })}
       </div>
 
-      {/* Content Section: 1. MISI KAMPANYE (Quests) */}
+      {/* 1. MISI KAMPANYE */}
       {activeSection === 'missions' && (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-bold font-mono text-slate-400 uppercase tracking-wider">
-              Daftar Misi & Hadiah Regulator
+            <span className="text-xs font-bold font-mono text-slate-500 uppercase">
+              Target Operasi DJKA
             </span>
-            <span className="text-[11px] font-mono text-amber-400 font-bold">
-              Reputasi: {Math.round(state.reputation * 100)}% ★★★★★
+            <span className="text-[11px] font-mono text-amber-700 font-bold">
+              Reputasi: {Math.round(state.reputation * 100)}%
             </span>
           </div>
 
@@ -130,41 +87,41 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
             return (
               <div
                 key={mission.id}
-                className={`p-4 rounded-xl border transition-all ${
+                className={`p-3 rounded-xl border transition-all ${
                   isCompleted
-                    ? 'bg-gradient-to-r from-[#0F172A] to-[#064E3B]/30 border-emerald-500/40 shadow-lg'
+                    ? 'bg-emerald-50/60 border-emerald-200'
                     : isUnlocked
-                    ? 'bg-[#0F172A] border-[#334155] shadow'
-                    : 'bg-[#0B1120] border-slate-800 opacity-60'
+                    ? 'bg-white border-slate-200 shadow-2xs'
+                    : 'bg-slate-50 border-slate-200 opacity-60'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="flex items-center space-x-1.5">
-                      <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-black bg-[#F97316]/20 text-[#F97316] border border-orange-500/30">
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
                         TAHAP {mission.stage}
                       </span>
-                      <h3 className="font-bold text-sm text-white">{mission.title}</h3>
+                      <h3 className="font-bold text-xs text-slate-900">{mission.title}</h3>
                     </div>
-                    <p className="text-xs text-slate-300 mt-1 line-clamp-2">
+                    <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">
                       {mission.narrativeContext}
                     </p>
                   </div>
 
                   {isCompleted ? (
-                    <span className="shrink-0 flex items-center space-x-1 px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-mono font-bold">
+                    <span className="shrink-0 flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-mono font-bold">
                       <CheckCircle2 className="w-3 h-3" />
-                      <span>KLAIMED</span>
+                      <span>SELESAI</span>
                     </span>
                   ) : !isUnlocked ? (
-                    <span className="shrink-0 flex items-center space-x-1 px-2 py-1 rounded-full bg-slate-800 text-slate-500 text-[10px] font-mono">
+                    <span className="shrink-0 flex items-center space-x-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[10px] font-mono">
                       <Lock className="w-3 h-3" />
                       <span>TERKUNCI</span>
                     </span>
                   ) : (
                     <button
-                      onClick={() => alert(`Selesaikan seluruh sasaran operasi untuk mengklaim hadiah ${mission.title}!`)}
-                      className="shrink-0 flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[11px] font-bold shadow-md shadow-orange-500/20 active:scale-95 transition-all"
+                      onClick={() => alert(`Selesaikan sasaran untuk mengklaim bonus ${mission.title}!`)}
+                      className="shrink-0 flex items-center space-x-1 px-2 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold shadow-2xs active:scale-95 transition-all"
                     >
                       <Sparkles className="w-3 h-3" />
                       <span>Klaim</span>
@@ -173,7 +130,7 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
                 </div>
 
                 {/* Progress bar */}
-                <div className="mt-3 pt-3 border-t border-[#334155]/60 space-y-2">
+                <div className="mt-2.5 pt-2 border-t border-slate-100 space-y-1.5">
                   {mission.objectives.map((obj) => {
                     let val = 0;
                     if (obj.type === 'DEPOT_BUILT') val = state.depots.length;
@@ -184,15 +141,15 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
 
                     return (
                       <div key={obj.id} className="text-xs">
-                        <div className="flex justify-between text-[11px] text-slate-300 mb-1">
+                        <div className="flex justify-between text-[11px] text-slate-600 mb-0.5">
                           <span className="truncate">{obj.description}</span>
-                          <span className="font-mono font-bold text-amber-400 ml-2">
+                          <span className="font-mono font-bold text-slate-800 ml-2">
                             {val}/{obj.targetValue} ({pct}%)
                           </span>
                         </div>
-                        <div className="w-full bg-[#1E293B] h-1.5 rounded-full overflow-hidden">
+                        <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
                           <div
-                            className="bg-[#F97316] h-full rounded-full transition-all duration-300"
+                            className="bg-blue-600 h-full rounded-full transition-all"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
@@ -202,9 +159,9 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
                 </div>
 
                 {/* Reward preview */}
-                <div className="mt-3 bg-[#1E293B]/70 px-2.5 py-1.5 rounded-lg flex items-center justify-between text-[11px] font-mono">
-                  <span className="text-slate-400">Bonus Hadiah:</span>
-                  <span className="font-bold text-emerald-400">
+                <div className="mt-2 bg-slate-50 px-2 py-1 rounded-md flex items-center justify-between text-[10px] font-mono border border-slate-200">
+                  <span className="text-slate-500">Bonus Hadiah:</span>
+                  <span className="font-bold text-emerald-700">
                     + {formatRupiah(mission.rewards.cashBonus)}
                   </span>
                 </div>
@@ -214,32 +171,32 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
         </div>
       )}
 
-      {/* Content Section: 2. KEUANGAN (Financial Health) */}
+      {/* 2. KEUANGAN */}
       {activeSection === 'finance' && (
-        <div className="space-y-4">
-          <div className="bg-[#0F172A] border border-[#334155] rounded-xl p-4 shadow-lg">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-mono uppercase text-slate-400 font-bold">
-                Saldo Kas Perusahaan
+        <div className="space-y-3">
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-mono uppercase text-slate-500 font-semibold">
+                Saldo Kas Likuid
               </span>
-              <span className="text-xs font-mono font-bold text-emerald-400">
+              <span className="text-xs font-mono font-bold text-emerald-700">
                 Margin: {financeVm.profitMarginFormatted}
               </span>
             </div>
-            <div className="text-2xl font-mono font-black text-emerald-400">
+            <div className="text-xl font-mono font-bold text-emerald-700">
               {financeVm.currentCashBalanceFormatted}
             </div>
 
-            <div className="grid grid-cols-2 gap-2 mt-4 text-xs font-mono">
-              <div className="bg-[#1E293B] p-2.5 rounded-lg border border-[#334155]/60">
-                <div className="text-[10px] text-slate-400">Pendapatan Tiket</div>
-                <div className="font-bold text-emerald-400 text-sm mt-0.5">
+            <div className="grid grid-cols-2 gap-2 mt-3 text-xs font-mono">
+              <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                <div className="text-[10px] text-slate-500 font-sans">Pendapatan Tiket</div>
+                <div className="font-bold text-emerald-700 text-xs mt-0.5">
                   {financeVm.totalRevenueFormatted}
                 </div>
               </div>
-              <div className="bg-[#1E293B] p-2.5 rounded-lg border border-[#334155]/60">
-                <div className="text-[10px] text-slate-400">Beban OPEX</div>
-                <div className="font-bold text-red-400 text-sm mt-0.5">
+              <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+                <div className="text-[10px] text-slate-500 font-sans">Beban OPEX</div>
+                <div className="font-bold text-red-600 text-xs mt-0.5">
                   {financeVm.totalOpexFormatted}
                 </div>
               </div>
@@ -247,19 +204,19 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
           </div>
 
           {/* Cost Centers Bar */}
-          <div className="bg-[#0F172A] border border-[#334155] rounded-xl p-4 shadow-lg space-y-3">
-            <h4 className="text-xs font-mono font-bold uppercase text-slate-400">
+          <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs space-y-2.5">
+            <h4 className="text-xs font-mono font-bold uppercase text-slate-600">
               Breakdown Beban Operasional (OPEX)
             </h4>
             {financeVm.costCenters.map((cc) => (
               <div key={cc.label} className="text-xs">
-                <div className="flex justify-between mb-1">
-                  <span className="text-slate-300 font-medium">{cc.label}</span>
-                  <span className="font-mono font-bold text-white">
+                <div className="flex justify-between mb-0.5">
+                  <span className="text-slate-700 font-medium text-[11px]">{cc.label}</span>
+                  <span className="font-mono font-bold text-slate-900 text-[11px]">
                     {cc.amountFormatted} ({cc.percentageOfTotalOpex}%)
                   </span>
                 </div>
-                <div className="w-full bg-[#1E293B] h-1.5 rounded-full overflow-hidden">
+                <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full"
                     style={{ width: `${cc.percentageOfTotalOpex}%`, backgroundColor: cc.colorHex }}
@@ -271,54 +228,53 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
         </div>
       )}
 
-      {/* Content Section: 3. KRU MASINIS (Workforce) */}
+      {/* 3. AWAK KRU */}
       {activeSection === 'workforce' && (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">
-              Awak KA Terdaftar ({state.employees.length})
+            <span className="text-xs font-mono font-bold text-slate-500 uppercase">
+              Awak KA Aktif ({state.employees.length})
             </span>
-            <span className="text-[11px] font-mono text-[#0EA5E9]">
-              Payroll: {formatRupiah(state.employees.reduce((s, e) => s + (BASE_MONTHLY_SALARIES[e.role] ?? 8_000_000), 0))} /bln
+            <span className="text-[11px] font-mono text-blue-700 font-medium">
+              Beban: {formatRupiah(state.employees.reduce((s, e) => s + (BASE_MONTHLY_SALARIES[e.role] ?? 8_000_000), 0))} /bln
             </span>
           </div>
 
           {state.employees.map((emp) => {
             const fatigue = emp.fatigueLevel;
             const stamina = 100 - fatigue;
-            const isTired = fatigue > 50;
 
             return (
               <div
                 key={emp.id}
-                className="bg-[#0F172A] border border-[#334155] rounded-xl p-3.5 shadow-md flex items-center justify-between gap-3"
+                className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs flex items-center justify-between gap-2.5"
               >
                 <div className="min-w-0">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-base">👨‍✈️</span>
-                    <h4 className="font-bold text-sm text-white truncate">{emp.name}</h4>
-                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-[#1E293B] text-slate-300 border border-[#334155]">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-sm">👨‍✈️</span>
+                    <h4 className="font-bold text-xs text-slate-900 truncate">{emp.name}</h4>
+                    <span className="px-1.5 py-0.1 rounded text-[9px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
                       {emp.role}
                     </span>
                   </div>
-                  <div className="text-[10px] text-slate-400 font-mono mt-1">
-                    Dipo: {emp.homeDepotId} • Dinas: {emp.monthlyHoursWorked} Jam
+                  <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                    Dipo {emp.homeDepotId} • Jam Dinas: {emp.monthlyHoursWorked} Jam
                   </div>
 
                   {/* Stamina Meter */}
-                  <div className="flex items-center space-x-2 mt-2">
-                    <span className="text-[10px] text-slate-400 font-mono">Stamina:</span>
-                    <div className="w-20 bg-[#1E293B] h-1.5 rounded-full overflow-hidden">
+                  <div className="flex items-center space-x-1.5 mt-1.5">
+                    <span className="text-[10px] text-slate-500 font-mono">Stamina:</span>
+                    <div className="w-16 bg-slate-200 h-1.5 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full ${
-                          stamina < 40 ? 'bg-red-500' : stamina < 70 ? 'bg-amber-400' : 'bg-emerald-400'
+                          stamina < 40 ? 'bg-red-500' : stamina < 70 ? 'bg-amber-500' : 'bg-emerald-600'
                         }`}
                         style={{ width: `${stamina}%` }}
                       />
                     </div>
                     <span
                       className={`text-[10px] font-mono font-bold ${
-                        stamina < 40 ? 'text-red-400' : 'text-emerald-400'
+                        stamina < 40 ? 'text-red-600' : 'text-emerald-700'
                       }`}
                     >
                       {stamina}%
@@ -327,10 +283,10 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
                 </div>
 
                 <button
-                  onClick={() => alert(`Masinis ${emp.name} beristirahat di mess dipo!`)}
-                  className="shrink-0 px-2.5 py-1.5 rounded-lg bg-[#1E293B] hover:bg-[#334155] border border-[#334155] text-xs font-semibold text-slate-200 flex items-center space-x-1 active:scale-95"
+                  onClick={() => alert(`Kru ${emp.name} beristirahat di mess dipo!`)}
+                  className="shrink-0 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 border border-slate-200 text-[11px] font-medium text-slate-700 flex items-center space-x-1 active:scale-95"
                 >
-                  <Coffee className="w-3.5 h-3.5 text-amber-400" />
+                  <Coffee className="w-3 h-3 text-amber-600" />
                   <span>Istirahat</span>
                 </button>
               </div>
@@ -339,11 +295,11 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
         </div>
       )}
 
-      {/* Content Section: 4. KARGO B2B (Logistics Contracts) */}
+      {/* 4. KARGO B2B */}
       {activeSection === 'contracts' && (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs font-mono font-bold text-slate-500 uppercase">
               Kontrak Logistik Aktif ({state.b2bContracts.length})
             </span>
           </div>
@@ -357,24 +313,24 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
             return (
               <div
                 key={ctr.id}
-                className="bg-[#0F172A] border border-[#334155] rounded-xl p-4 shadow-lg space-y-3"
+                className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs space-y-2"
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-[#1E293B] text-amber-400 border border-amber-500/30">
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
                       {ctr.cargoCategory}
                     </span>
-                    <h4 className="font-bold text-sm text-white mt-1">{ctr.clientName}</h4>
-                    <div className="text-[11px] font-mono text-slate-400">
+                    <h4 className="font-bold text-xs text-slate-900 mt-1">{ctr.clientName}</h4>
+                    <div className="text-[10px] font-mono text-slate-500">
                       {ctr.originStationId.split('_')[1]} ➔ {ctr.destinationStationId.split('_')[1]}
                     </div>
                   </div>
 
                   <div className="text-right">
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono font-bold">
+                    <span className="px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[9px] font-mono font-bold">
                       {ctr.status}
                     </span>
-                    <div className="text-xs font-mono font-bold text-emerald-400 mt-1">
+                    <div className="text-xs font-mono font-bold text-emerald-700 mt-0.5">
                       {formatRupiah(ctr.revenuePerTonDelivered)} /Ton
                     </div>
                   </div>
@@ -382,23 +338,23 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
 
                 {/* Quota Progress */}
                 <div>
-                  <div className="flex justify-between text-[11px] font-mono mb-1">
-                    <span className="text-slate-400">Volume Terkirim:</span>
-                    <span className="font-bold text-amber-400">
+                  <div className="flex justify-between text-[10px] font-mono mb-0.5">
+                    <span className="text-slate-500">Volume Terkirim:</span>
+                    <span className="font-bold text-slate-800">
                       {ctr.deliveredVolumeTons} / {ctr.requiredWeeklyVolumeTons} Ton ({pct}%)
                     </span>
                   </div>
-                  <div className="w-full bg-[#1E293B] h-2 rounded-full overflow-hidden">
+                  <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                     <div
-                      className="bg-gradient-to-r from-amber-500 to-[#F97316] h-full rounded-full transition-all"
+                      className="bg-blue-600 h-full rounded-full transition-all"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 pt-2 border-t border-[#334155]/60">
-                  <span>Sisa Kontrak: {ctr.remainingDays} Hari</span>
-                  <span className="text-red-400">Penalti: {formatRupiah(ctr.latePenaltyPerTon)}/Ton</span>
+                <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 pt-1.5 border-t border-slate-100">
+                  <span>Sisa Waktu: {ctr.remainingDays} Hari</span>
+                  <span className="text-red-600">Penalti: {formatRupiah(ctr.latePenaltyPerTon)}/Ton</span>
                 </div>
               </div>
             );

@@ -22,7 +22,7 @@ export const FloatingActionDock: React.FC<FloatingActionDockProps> = ({
     {
       id: 'network' as FloatingTab,
       icon: Map,
-      tooltip: 'Peta Radar',
+      tooltip: 'Peta Operasi',
       badge: 0,
     },
     {
@@ -52,7 +52,7 @@ export const FloatingActionDock: React.FC<FloatingActionDockProps> = ({
   ];
 
   return (
-    <aside className="fixed bottom-6 right-4 z-40 flex flex-col items-center space-y-2 select-none">
+    <aside className="fixed bottom-5 right-4 z-40 flex flex-col items-center space-y-2 select-none pointer-events-auto">
       {dockItems.map((item) => {
         const Icon = item.icon;
         const isCurrentActive = activeTab === item.id && (item.id === 'network' || isSheetOpen);
@@ -63,17 +63,17 @@ export const FloatingActionDock: React.FC<FloatingActionDockProps> = ({
             onClick={() => onToggleTab(item.id)}
             title={item.tooltip}
             aria-label={item.tooltip}
-            className={`w-11 h-11 rounded-full flex items-center justify-center relative transition-all duration-200 shadow-xl active:scale-90 ${
+            className={`w-10 h-10 rounded-full flex items-center justify-center relative transition-all duration-150 shadow-md active:scale-95 ${
               isCurrentActive
-                ? 'bg-gradient-to-tr from-[#F97316] to-[#EA580C] text-white shadow-orange-500/40 ring-2 ring-orange-400 scale-105'
-                : 'bg-[#0F172A]/90 backdrop-blur-md text-slate-300 hover:text-white hover:bg-[#1E293B] border border-[#334155]/80'
+                ? 'bg-blue-600 text-white ring-2 ring-blue-300 shadow-blue-500/30'
+                : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300'
             }`}
           >
-            <Icon className="w-5 h-5 stroke-[2.2]" />
+            <Icon className="w-4 h-4 stroke-[2.2]" />
 
             {/* Notification Badge if any */}
             {item.badge > 0 && (
-              <span className="absolute -top-1 -right-1 px-1.5 py-0.2 bg-[#EF4444] text-white text-[9px] font-mono font-black rounded-full border border-slate-900 shadow animate-pulse">
+              <span className="absolute -top-1 -right-1 px-1.5 py-0.2 bg-red-600 text-white text-[9px] font-mono font-bold rounded-full border border-white shadow-xs">
                 {item.badge}
               </span>
             )}

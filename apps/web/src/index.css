@@ -1,14 +1,13 @@
 :root {
-  --color-canvas: #020617;
-  --color-panel: #0F172A;
-  --color-surface: #1E293B;
-  --color-border: #334155;
-  --color-orange: #F97316;
-  --color-orange-hover: #EA580C;
-  --color-emerald: #10B981;
-  --color-rose: #EF4444;
-  --color-amber: #F59E0B;
-  --color-sky: #0EA5E9;
+  --color-canvas: #F8FAFC;
+  --color-panel: #FFFFFF;
+  --color-surface: #F1F5F9;
+  --color-border: #E2E8F0;
+  --color-text-main: #0F172A;
+  --color-text-muted: #64748B;
+  --color-brand-blue: #1E40AF;
+  --color-brand-orange: #EA580C;
+  --color-brand-emerald: #059669;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', Menlo, Monaco, Consolas, monospace;
 }
@@ -21,7 +20,7 @@
 
 body {
   background-color: var(--color-canvas);
-  color: #F8FAFC;
+  color: var(--color-text-main);
   font-family: var(--font-sans);
   line-height: 1.5;
   user-select: none;
@@ -34,18 +33,30 @@ body {
   font-family: var(--font-mono);
 }
 
-/* Custom Scrollbars */
+/* Clean Standard Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0F172A;
+  background: #F1F5F9;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #CBD5E1;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #94A3B8;
+}
+
+/* Leaflet Clean Overrides */
+.leaflet-container {
+  font-family: var(--font-sans) !important;
+  background-color: #E2E8F0 !important;
+}
+
+.station-div-icon,
+.train-div-icon {
+  background: transparent !important;
+  border: none !important;
 }

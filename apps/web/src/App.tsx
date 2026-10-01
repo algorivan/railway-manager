@@ -17,9 +17,9 @@ export const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(() => createInitialWebGameState());
   const [activeTab, setActiveTab] = useState<FloatingTab>('network');
   const [isSheetOpen, setIsSheetOpen] = useState<boolean>(false);
-  const [isDeviceFrameMode, setIsDeviceFrameMode] = useState<boolean>(true);
+  const [isDeviceFrameMode, setIsDeviceFrameMode] = useState<boolean>(false); // default to clean full-screen map
   const [tickerMessage, setTickerMessage] = useState<string | null>(
-    'Peta Operasi OpenStreetMap aktif! Tap stasiun atau kereta di peta untuk inspeksi.'
+    'Peta Operasi OpenStreetMap aktif. Klik stasiun atau jalur rel untuk informasi rute.'
   );
 
   const engine = useMemo(() => new SimulationEngine(), []);
@@ -63,7 +63,7 @@ export const App: React.FC = () => {
           2026
         );
 
-        setTickerMessage(`KA ${slot.routeId} berhasil meluncur ke lintas!`);
+        setTickerMessage(`KA ${slot.routeId} berhasil diberangkatkan ke lintas.`);
         return { ...res.nextState, speed: wasPaused ? 'PAUSED' : prev.speed };
       });
     },
@@ -78,7 +78,7 @@ export const App: React.FC = () => {
     if (availableSlot) {
       handleDispatchSlot(availableSlot.id);
     } else {
-      setTickerMessage('Semua armada kereta sedang aktif di lintas.');
+      setTickerMessage('Semua armada kereta sedang aktif beroperasi.');
     }
   }, [gameState.timetableSlots, gameState.activeServices, handleDispatchSlot]);
 
@@ -121,7 +121,7 @@ export const App: React.FC = () => {
           description: `Uang Muka Pemesanan ${quantity}x ${spec.modelName} ke pabrikan INKA`,
         });
 
-        setTickerMessage(`Pesanan ${quantity}x ${spec.modelName} masuk antrean pabrik INKA!`);
+        setTickerMessage(`Pesanan ${quantity}x ${spec.modelName} berhasil diajukan ke INKA.`);
         return {
           ...prev,
           procurementOrders: Object.freeze([...prev.procurementOrders, newOrder]),
@@ -168,8 +168,8 @@ export const App: React.FC = () => {
     return () => clearInterval(timer);
   }, [gameState.speed, engine]);
 
-  // Render Drawer Sheet Content
-  const renderDrawerContent = () => {
+  // Render Modal Sheet Content
+  const renderModalContent = () => {
     switch (activeTab) {
       case 'timetable':
         return <TimetableScreen state={gameState} onDispatchSlot={handleDispatchSlot} />;
@@ -184,14 +184,14 @@ export const App: React.FC = () => {
     }
   };
 
-  const getSheetTitle = () => {
+  const getModalTitle = () => {
     switch (activeTab) {
       case 'timetable':
-        return 'Pusat Jadwal & Dispatch KA';
+        return 'Jadwal & Dispatch KA';
       case 'fleet':
-        return 'Dipo & Formasi Rangkaian';
+        return 'Armada & Formasi Dipo';
       case 'procurement':
-        return 'Pabrik Sarana & Showroom INKA';
+        return 'Pengadaan Sarana INKA';
       case 'hub':
         return 'Kantor Pusat Direksi';
       default:
@@ -200,37 +200,16 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen w-screen bg-[#020617] flex items-center justify-center overflow-hidden">
-      {/* Desktop Device Mode Toggle Bar (Floating subtle on top-right for desktop users) */}
-      <div className="fixed top-3 right-3 z-50 hidden md:flex items-center space-x-1.5 bg-[#0F172A]/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-[#334155] shadow-lg">
-        <button
-          onClick={() => setIsDeviceFrameMode((prev) => !prev)}
-          className="text-xs font-mono text-slate-300 hover:text-white flex items-center space-x-1"
-          title="Toggle tampilan frame smartphone"
-        >
-          {isDeviceFrameMode ? (
-            <>
-              <Monitor className="w-3.5 h-3.5 text-[#0EA5E9]" />
-              <span>Layar Lebar</span>
-            </>
-          ) : (
-            <>
-              <Smartphone className="w-3.5 h-3.5 text-[#F97316]" />
-              <span>Frame HP</span>
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* Main Container: Mobile Frame on Desktop or Full Responsive on Mobile */}
+    <div className="min-h-screen w-screen bg-slate-100 flex items-center justify-center overflow-hidden">
+      {/* Main App Container */}
       <div
-        className={`w-full h-screen flex flex-col bg-[#020617] relative overflow-hidden transition-all duration-300 ${
+        className={`w-full h-screen flex flex-col bg-white relative overflow-hidden transition-all duration-300 ${
           isDeviceFrameMode
-            ? 'max-w-md h-[92vh] max-h-[880px] rounded-3xl border-2 border-[#1E293B] shadow-[0_0_60px_rgba(249,115,22,0.15)] ring-1 ring-slate-800'
+            ? 'max-w-md h-[92vh] max-h-[880px] rounded-2xl border border-slate-300 shadow-2xl ring-1 ring-slate-200'
             : 'max-w-none'
         }`}
       >
-        {/* Mobile Top HUD */}
+        {/* Top Header HUD (Clean Light Theme) */}
         <MobileHeader
           state={gameState}
           onSetSpeed={handleSetSpeed}
@@ -240,55 +219,62 @@ export const App: React.FC = () => {
 
         {/* Operational Ticker Banner */}
         {tickerMessage && (
-          <div className="bg-[#0F172A] border-b border-[#1E293B] px-3 py-1 flex items-center justify-between text-[11px] font-mono text-slate-300 shrink-0 z-20">
+          <div className="bg-slate-50 border-b border-slate-200 px-3.5 py-1 flex items-center justify-between text-[11px] font-mono text-slate-600 shrink-0 z-20">
             <div className="flex items-center space-x-1.5 truncate">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] shrink-0" />
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" />
               <span className="truncate">{tickerMessage}</span>
             </div>
             <button
               onClick={() => setTickerMessage(null)}
-              className="text-slate-500 hover:text-white ml-2 text-xs"
+              className="text-slate-400 hover:text-slate-700 ml-2 text-xs font-bold"
             >
               ✕
             </button>
           </div>
         )}
 
-        {/* Primary Screen: Operations Map (ALWAYS the root canvas!) */}
+        {/* Primary Screen: Operations Map (ALWAYS the root view!) */}
         <main className="flex-1 flex flex-col overflow-hidden relative">
           <NetworkMapScreen state={gameState} onDispatchSlot={handleDispatchSlot} />
 
-          {/* Slide-Up Drawer Modal Sheet (when a non-map tab is active) */}
+          {/* Centered Pop-up Modal with Blurry Background Map */}
           {isSheetOpen && activeTab !== 'network' && (
-            <div className="absolute inset-0 z-40 bg-black/60 backdrop-blur-sm flex flex-col justify-end animate-in fade-in duration-200">
-              {/* Sheet Card Container */}
-              <div className="w-full max-h-[85vh] h-[85vh] bg-[#020617] rounded-t-3xl border-t border-[#334155] shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-300">
-                {/* Sheet Drag Handle & Header */}
-                <div className="px-4 pt-3 pb-2.5 bg-[#0F172A] border-b border-[#1E293B] flex items-center justify-between shrink-0 select-none">
+            <div
+              onClick={() => setIsSheetOpen(false)}
+              className="fixed inset-0 z-50 bg-slate-900/35 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-150"
+            >
+              {/* Modal Dialog Card (Click-propagation stopped) */}
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-lg md:max-w-xl max-h-[84vh] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+              >
+                {/* Modal Header Bar */}
+                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0 select-none">
                   <div className="flex items-center space-x-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#F97316]" />
-                    <h3 className="font-bold text-sm text-white font-mono">
-                      {getSheetTitle()}
+                    <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+                    <h3 className="font-bold text-sm text-slate-900 font-mono">
+                      {getModalTitle()}
                     </h3>
                   </div>
 
                   <button
                     onClick={() => setIsSheetOpen(false)}
-                    className="w-7 h-7 rounded-full bg-[#1E293B] hover:bg-[#334155] text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+                    className="w-7 h-7 rounded-full bg-slate-200/80 hover:bg-slate-300 text-slate-600 hover:text-slate-900 flex items-center justify-center transition-colors"
+                    title="Tutup Modal"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
 
-                {/* Sheet Scrollable Body */}
-                <div className="flex-1 flex flex-col overflow-y-auto">
-                  {renderDrawerContent()}
+                {/* Modal Scrollable Body */}
+                <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+                  {renderModalContent()}
                 </div>
               </div>
             </div>
           )}
 
-          {/* Floating Action Dock: Bottom Right Aligned, Icon Only (No Text!) */}
+          {/* Floating Action Dock: Bottom Right Aligned, Icon Only, No Text */}
           <FloatingActionDock
             activeTab={activeTab}
             isSheetOpen={isSheetOpen}
