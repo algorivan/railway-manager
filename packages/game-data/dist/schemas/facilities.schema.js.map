@@ -1,0 +1,1 @@
+{"version":3,"file":"facilities.schema.js","sourceRoot":"","sources":["../../src/schemas/facilities.schema.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,CAAC,EAAE,MAAM,KAAK,CAAC;AAExB,MAAM,CAAC,MAAM,uBAAuB,GAAG,CAAC,CAAC,MAAM,CAAC;IAC9C,gBAAgB,EAAE,CAAC,CAAC,OAAO,EAAE;IAC7B,kBAAkB,EAAE,CAAC,CAAC,OAAO,EAAE;IAC/B,kBAAkB,EAAE,CAAC,CAAC,OAAO,EAAE;CAChC,CAAC,CAAC"}

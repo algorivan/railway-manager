@@ -1,0 +1,27 @@
+import { Brand } from './brand.js';
+export type Money = Brand<number, 'Money'>;
+export type Km = Brand<number, 'Km'>;
+export type Kmh = Brand<number, 'Kmh'>;
+export type Tons = Brand<number, 'Tons'>;
+export type Meters = Brand<number, 'Meters'>;
+export type Minutes = Brand<number, 'Minutes'>;
+export type Percentage = Brand<number, 'Percentage'>;
+export declare function toMoney(val: number): Money;
+export declare function isMoney(val: unknown): val is Money;
+export declare function addMoney(a: Money, b: Money): Money;
+export declare function subtractMoney(a: Money, b: Money): Money;
+export declare function multiplyMoney(m: Money, factor: number): Money;
+export declare function formatRupiah(m: Money): string;
+export declare function toKm(n: number): Km;
+export declare function isKm(v: unknown): v is Km;
+export declare function toKmh(n: number): Kmh;
+export declare function isKmh(v: unknown): v is Kmh;
+export declare function toTons(n: number): Tons;
+export declare function isTons(v: unknown): v is Tons;
+export declare function toMeters(n: number): Meters;
+export declare function isMeters(v: unknown): v is Meters;
+export declare function toMinutes(n: number): Minutes;
+export declare function isMinutes(v: unknown): v is Minutes;
+export declare function toPercentage(n: number): Percentage;
+export declare function isPercentage(v: unknown): v is Percentage;
+//# sourceMappingURL=units.d.ts.map

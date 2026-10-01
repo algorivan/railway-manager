@@ -1,0 +1,68 @@
+$ vitest run
+
+ RUN  v2.1.9 /home/synx/railway-manager/packages/game-data
+
+[?25l · test/schemas.test.ts (7)
+[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[2K[1A[2K[G ✓ test/schemas.test.ts (7)
+[?25l[?25l[?25l[?25l[?25l[?25l[2K[1A[2K[G · test/adversarial-catalog.test.ts (9)
+ ✓ test/schemas.test.ts (7)
+ · test/loader.test.ts (8)
+[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[2K[1A[2K[1A[2K[1A[2K[G · test/adversarial-catalog.test.ts (9)
+ ✓ test/schemas.test.ts (7)
+ ✓ test/loader.test.ts (8)
+[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[2K[1A[2K[1A[2K[1A[2K[Gstdout | test/adversarial-catalog.test.ts > Adversarial Stress Testing — World Data Catalog > 3. Query Speed Benchmark (100,000 lookups) > executes 100,000 O(1) catalog indexing queries under 1,000ms
+
+--- BENCHMARK RESULTS ---
+Total operations: 300,000
+Elapsed time: 249.53 ms
+Throughput: 1,202,238 ops/sec
+Average latency: 0.8318 µs/op
+-------------------------
+
+
+[?25l ✓ test/adversarial-catalog.test.ts (9) 850ms
+ ✓ test/schemas.test.ts (7)
+ ✓ test/loader.test.ts (8)
+[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[2K[1A[2K[1A[2K[1A[2K[G ✓ test/adversarial-catalog.test.ts (9) 850ms
+ ✓ test/schemas.test.ts (7)
+ ✓ test/loader.test.ts (8)
+ · test/catalog.test.ts (6)
+[?25l[?25l[?25l[?25l[2K[1A[2K[1A[2K[1A[2K[1A[2K[G ✓ test/adversarial-catalog.test.ts (9) 850ms
+ ✓ test/schemas.test.ts (7)
+ ✓ test/loader.test.ts (8)
+ ✓ test/catalog.test.ts (6)
+[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[2K[1A[2K[1A[2K[1A[2K[1A[2K[G ✓ test/adversarial-catalog.test.ts (9) 850ms
+ ✓ test/schemas.test.ts (7)
+ ✓ test/loader.test.ts (8)
+ ✓ test/catalog.test.ts (6)
+ · test/rolling-stock.test.ts (5)
+[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[2K[1A[2K[1A[2K[1A[2K[1A[2K[1A[2K[G ✓ test/adversarial-catalog.test.ts (9) 850ms
+ ✓ test/schemas.test.ts (7)
+ ✓ test/loader.test.ts (8)
+ ✓ test/catalog.test.ts (6)
+ ✓ test/rolling-stock.test.ts (5)
+[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[?25l[2K[1A[2K[1A[2K[1A[2K[1A[2K[1A[2K[G ✓ test/adversarial-catalog.test.ts (9) 850ms
+ ✓ test/schemas.test.ts (7)
+ ✓ test/loader.test.ts (8)
+ ✓ test/catalog.test.ts (6)
+ ✓ test/rolling-stock.test.ts (5)
+ · test/bounds.test.ts (3)
+[?25l[?25l[?25l[2K[1A[2K[1A[2K[1A[2K[1A[2K[1A[2K[1A[2K[G ✓ test/adversarial-catalog.test.ts (9) 850ms
+ ✓ test/schemas.test.ts (7)
+ ✓ test/loader.test.ts (8)
+ ✓ test/catalog.test.ts (6)
+ ✓ test/rolling-stock.test.ts (5)
+ ✓ test/bounds.test.ts (3)
+[?25l[?25l[?25l[2K[1A[2K[1A[2K[1A[2K[1A[2K[1A[2K[1A[2K[G ✓ test/adversarial-catalog.test.ts (9) 850ms
+ ✓ test/bounds.test.ts (3)
+ ✓ test/catalog.test.ts (6)
+ ✓ test/loader.test.ts (8)
+ ✓ test/rolling-stock.test.ts (5)
+ ✓ test/schemas.test.ts (7)
+
+ Test Files  6 passed (6)
+      Tests  38 passed (38)
+   Start at  11:56:31
+   Duration  8.47s (transform 3.07s, setup 0ms, collect 6.79s, tests 1.70s, environment 20ms, prepare 6.52s)
+
+[?25h[?25h
