@@ -149,6 +149,49 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.43)
 
+  packages/missions:
+    dependencies:
+      '@railway/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@railway/economy':
+        specifier: workspace:*
+        version: link:../economy
+      '@railway/fleet':
+        specifier: workspace:*
+        version: link:../fleet
+      '@railway/game-data':
+        specifier: workspace:*
+        version: link:../game-data
+      '@railway/network':
+        specifier: workspace:*
+        version: link:../network
+      '@railway/procurement':
+        specifier: workspace:*
+        version: link:../procurement
+      '@railway/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@railway/simulation':
+        specifier: workspace:*
+        version: link:../simulation
+      '@railway/timetable':
+        specifier: workspace:*
+        version: link:../timetable
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.43
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@20.19.43)
+
   packages/network:
     dependencies:
       '@railway/game-data':
