@@ -8,16 +8,21 @@ import { TimetableScreen } from './components/TimetableScreen';
 import { FleetScreen } from './components/FleetScreen';
 import { ProcurementScreen } from './components/ProcurementScreen';
 import { ManagementHubScreen } from './components/ManagementHubScreen';
+import { ActionResponseModal, ActionFeedbackData } from './components/ActionResponseModal';
 import { ProcurementOrderEntity } from '@railway/procurement';
 import { JAVA_ROLLING_STOCK_CATALOG } from '@railway/game-data';
+import { CAMPAIGN_MISSION_CATALOG } from '@railway/missions';
 import { createBrandedId, createGameTimestamp, toMoney, OrderId, TransactionId } from '@railway/shared';
+import { formatRupiah } from '@railway/ui';
 import { Smartphone, Monitor, X } from 'lucide-react';
+import { soundEffects } from './utils/soundEffects';
 
 export const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(() => createInitialWebGameState());
   const [activeTab, setActiveTab] = useState<FloatingTab>('network');
   const [isSheetOpen, setIsSheetOpen] = useState<boolean>(false);
   const [isDeviceFrameMode, setIsDeviceFrameMode] = useState<boolean>(false); // default to clean full-screen map
+  const [actionFeedback, setActionFeedback] = useState<ActionFeedbackData | null>(null);
   const [tickerMessage, setTickerMessage] = useState<string | null>(
     'Peta Operasi OpenStreetMap aktif. Klik stasiun atau jalur rel untuk informasi rute.'
   );
@@ -53,7 +58,22 @@ export const App: React.FC = () => {
         if (!slot) return prev;
 
         const isRunning = prev.activeServices.some((s) => s.timetableSlotId === slotId);
-        if (isRunning) return prev;
+        if (isRunning) {
+          soundEffects.playClickSound();
+          setActionFeedback({
+            type: 'INFO',
+            title: `KA ${slot.id} Sedang Beroperasi`,
+            subtitle: `Rangkaian kereta KA ${slot.id} saat ini masih dalam perjalanan dinas di petak jalan lintas. Tunggu hingga tiba di stasiun akhir sebelum dapat diberangkatkan kembali.`,
+            badge: 'SEDANG BERDINAS',
+            details: [
+              { label: 'Nomor Perjalanan', value: slot.id },
+              { label: 'Rute Lintas', value: slot.routeId },
+              { label: 'Status Operasi', value: 'Sedang Berjalan di Lintas', highlight: true },
+            ],
+            closeLabel: 'Mengerti',
+          });
+          return prev;
+        }
 
         const wasPaused = prev.speed === 'PAUSED';
         const res = engine.simulateTick(
@@ -63,7 +83,32 @@ export const App: React.FC = () => {
           2026
         );
 
-        setTickerMessage(`KA ${slot.routeId} berhasil diberangkatkan ke lintas.`);
+        soundEffects.playDispatchWhistle();
+        const routeObj = (prev.routes ?? []).find((r) => r.id === slot.routeId);
+        const depHour = Math.floor(slot.departureMinuteOfDay / 60).toString().padStart(2, '0');
+        const depMin = (slot.departureMinuteOfDay % 60).toString().padStart(2, '0');
+
+        setActionFeedback({
+          type: 'DISPATCH',
+          title: `KA ${slot.id} Berhasil Diberangkatkan!`,
+          subtitle: `Semboyan 40 (izin PPKA) dan Semboyan 41 (kondektur) telah dibunyikan. Masinis membalas dengan Semboyan 35, rangkaian meluncur ke jalur utama lintas.`,
+          badge: 'SEMBOYAN 40 DIBERIKAN',
+          details: [
+            { label: 'Nomor KA', value: slot.id },
+            { label: 'Rute Pelayanan', value: routeObj?.name ?? slot.routeId },
+            { label: 'Jadwal Berangkat', value: `${depHour}:${depMin} WIB` },
+            { label: 'Tipe Rangkaian', value: slot.compositionId ? `Formasi ${slot.compositionId}` : 'Eksekutif Stainless Steel' },
+            { label: 'Sinyal Berangkat', value: 'Aspek Hijau (Aman ke Petak Jalan)', highlight: true },
+          ],
+          actionLabel: 'Pantau di Peta',
+          onAction: () => {
+            setIsSheetOpen(false);
+            setActiveTab('network');
+          },
+          closeLabel: 'Lanjut Operasi',
+        });
+
+        setTickerMessage(`KA ${slot.id} (${routeObj?.name ?? slot.routeId}) berhasil meluncur ke lintas.`);
         return { ...res.nextState, speed: wasPaused ? 'PAUSED' : prev.speed };
       });
     },
@@ -78,6 +123,19 @@ export const App: React.FC = () => {
     if (availableSlot) {
       handleDispatchSlot(availableSlot.id);
     } else {
+      soundEffects.playClickSound();
+      setActionFeedback({
+        type: 'INFO',
+        title: 'Semua Armada Sedang Berdinas',
+        subtitle: 'Seluruh armada kereta api yang tersedia saat ini sedang aktif berdinas melayani perjalanan penumpang di lintas petak jalan Jawa.',
+        badge: 'LINTAS PENUH',
+        details: [
+          { label: 'KA Beroperasi', value: `${gameState.activeServices.length} Rangkaian KA` },
+          { label: 'Total Slot Jadwal', value: `${gameState.timetableSlots.length} Jadwal` },
+          { label: 'Status Jalur', value: 'Optimal Melayani Penumpang', highlight: true },
+        ],
+        closeLabel: 'Mengerti',
+      });
       setTickerMessage('Semua armada kereta sedang aktif beroperasi.');
     }
   }, [gameState.timetableSlots, gameState.activeServices, handleDispatchSlot]);
@@ -92,7 +150,20 @@ export const App: React.FC = () => {
       const currentCash = gameState.generalLedger.currentCashBalance;
 
       if (currentCash < totalCost) {
-        alert('Dana kas likuid tidak mencukupi untuk memesan sarana ini!');
+        soundEffects.playClickSound();
+        setActionFeedback({
+          type: 'WARNING',
+          title: 'Kas Likuid Tidak Mencukupi',
+          subtitle: `Perusahaan tidak memiliki saldo kas likuid yang cukup untuk memesan ${quantity}x unit sarana ${spec.modelName} ke pabrikan PT INKA.`,
+          badge: 'DANA TIDAK CUKUP',
+          details: [
+            { label: 'Sarana yang Dipesan', value: `${quantity}x ${spec.modelName}` },
+            { label: 'Total Biaya Diperlukan', value: formatRupiah(totalCost) },
+            { label: 'Saldo Kas Saat Ini', value: formatRupiah(currentCash) },
+            { label: 'Kekurangan Modal', value: formatRupiah(totalCost - currentCash), highlight: true },
+          ],
+          closeLabel: 'Tutup',
+        });
         return;
       }
 
@@ -121,6 +192,29 @@ export const App: React.FC = () => {
           description: `Uang Muka Pemesanan ${quantity}x ${spec.modelName} ke pabrikan INKA`,
         });
 
+        soundEffects.playCashChime();
+
+        setActionFeedback({
+          type: 'PURCHASE',
+          title: `Pesanan ${spec.modelName} Sukses Dipesan!`,
+          subtitle: `Purchase Order resmi berhasil diterbitkan ke PT Industri Kereta Api (INKA) Madiun. Sarana langsung didaftarkan ke lini perakitan pabrik.`,
+          badge: 'PESANAN SUKSES DIBELI',
+          details: [
+            { label: 'Model Sarana', value: `${spec.modelName} (${spec.category})` },
+            { label: 'Jumlah Dipesan', value: `${quantity} Unit Baru` },
+            { label: 'Total Investasi (CAPEX)', value: formatRupiah(totalCost), highlight: true },
+            { label: 'Dipo Penerima', value: prev.depots[0]?.name ?? 'Dipo Bandung (BD)' },
+            { label: 'Estimasi Lead Time', value: `${spec.standardLeadTimeDays} Hari Kalender` },
+            { label: 'Status Fabrikasi', value: 'Dalam Antrean Produksi INKA' },
+          ],
+          actionLabel: 'Lihat Antrean Pabrik',
+          onAction: () => {
+            setActiveTab('procurement');
+            setIsSheetOpen(true);
+          },
+          closeLabel: 'Kembali',
+        });
+
         setTickerMessage(`Pesanan ${quantity}x ${spec.modelName} berhasil diajukan ke INKA.`);
         return {
           ...prev,
@@ -130,6 +224,88 @@ export const App: React.FC = () => {
     },
     [gameState.generalLedger]
   );
+
+  // Claim mission bonus
+  const handleClaimMission = useCallback((missionId: string) => {
+    const mission = CAMPAIGN_MISSION_CATALOG.find((m) => m.id === missionId);
+    if (!mission) return;
+
+    setGameState((prev) => {
+      prev.generalLedger.postTransaction({
+        id: createBrandedId<TransactionId>(`TX_REWARD_${Date.now()}`),
+        companyId: prev.companyId,
+        timestamp: prev.timestamp,
+        category: 'REV_GOVERNMENT_SUBSIDY',
+        amount: toMoney(mission.rewards.cashBonus),
+        description: `Hadiah Penyelesaian Misi: ${mission.title}`,
+      });
+
+      soundEffects.playSuccessChime();
+
+      setActionFeedback({
+        type: 'MISSION',
+        title: `Bonus Misi: ${mission.title}`,
+        subtitle: `Sasaran strategis DJKA telah terpenuhi. Bonus apresiasi operasional telah dikreditkan langsung ke rekening kas perusahaan.`,
+        badge: 'SASARAN TERCAPAI',
+        details: [
+          { label: 'Tahap Kampanye', value: `Tahap ${mission.stage}` },
+          { label: 'Target Misi', value: mission.title },
+          { label: 'Bonus Kas Tunai', value: `+ ${formatRupiah(mission.rewards.cashBonus)}`, highlight: true },
+          { label: 'Apresiasi Regulator', value: '+5% Akreditasi DJKA' },
+          { label: 'Status Klaim', value: 'Dana Cair ke Rekening' },
+        ],
+        closeLabel: 'Terima Kasih',
+      });
+
+      setTickerMessage(`Hadiah misi ${mission.title} (+${formatRupiah(mission.rewards.cashBonus)}) berhasil diklaim.`);
+      return {
+        ...prev,
+        reputation: Math.min(1.0, prev.reputation + 0.05),
+      };
+    });
+  }, []);
+
+  // Rest employee at depot
+  const handleRestEmployee = useCallback((employeeId: string) => {
+    setGameState((prev) => {
+      const emp = prev.employees.find((e) => e.id === employeeId);
+      if (!emp) return prev;
+
+      soundEffects.playRestSound();
+
+      setActionFeedback({
+        type: 'REST',
+        title: `Kru ${emp.name} Selesai Istirahat`,
+        subtitle: `Kru telah menggunakan fasilitas istirahat mess dipo ${emp.homeDepotId}. Seluruh tingkat kelelahan terhapus dan kesiapan dinas telah pulih sempurna.`,
+        badge: 'KEBUGARAN KRU PULIH',
+        details: [
+          { label: 'Nama Lengkap Kru', value: emp.name },
+          { label: 'Tugas Operasional', value: emp.role },
+          { label: 'Home Dipo', value: `Dipo ${emp.homeDepotId}` },
+          { label: 'Tingkat Stamina', value: '100% Prima (Siap Dinas)', highlight: true },
+          { label: 'Status Kesehatan', value: 'Fit to Work (Lolos Cek Medis)' },
+        ],
+        closeLabel: 'Selesai',
+      });
+
+      setTickerMessage(`Kru ${emp.name} telah selesai beristirahat di mess dipo.`);
+
+      const updatedEmployees = prev.employees.map((e) => {
+        if (e.id === employeeId) {
+          return {
+            ...e,
+            fatigueLevel: 0,
+          };
+        }
+        return e;
+      });
+
+      return {
+        ...prev,
+        employees: Object.freeze(updatedEmployees) as any,
+      };
+    });
+  }, []);
 
   // Toggle Tab from Floating Action Dock
   const handleToggleTab = (tab: FloatingTab) => {
@@ -178,7 +354,13 @@ export const App: React.FC = () => {
       case 'procurement':
         return <ProcurementScreen state={gameState} onOrderSpec={handleOrderSpec} />;
       case 'hub':
-        return <ManagementHubScreen state={gameState} />;
+        return (
+          <ManagementHubScreen
+            state={gameState}
+            onClaimMission={handleClaimMission}
+            onRestEmployee={handleRestEmployee}
+          />
+        );
       default:
         return null;
     }
@@ -281,6 +463,12 @@ export const App: React.FC = () => {
             onToggleTab={handleToggleTab}
             unfulfilledContractsCount={gameState.b2bContracts.length}
             activeMissionsCount={2}
+          />
+
+          {/* Action Confirmation & Response Dialog Modal */}
+          <ActionResponseModal
+            data={actionFeedback}
+            onClose={() => setActionFeedback(null)}
           />
         </main>
       </div>

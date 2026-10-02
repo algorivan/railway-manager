@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { GameState, SimulationSpeed } from '@railway/simulation';
 import { createGlobalStatusBarViewModel } from '@railway/ui';
-import { Award, Wallet, Clock, Play, Pause, Plus } from 'lucide-react';
+import { Award, Wallet, Clock, Play, Pause, Plus, Volume2, VolumeX } from 'lucide-react';
+import { soundEffects } from '../utils/soundEffects';
 
 interface MobileHeaderProps {
   readonly state: GameState;
@@ -16,13 +17,23 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   onStepMinutes,
   onQuickDispatch,
 }) => {
+  const [isMuted, setIsMuted] = useState<boolean>(() => soundEffects.getMuted());
   const vm = createGlobalStatusBarViewModel(state);
 
   const speedCycle: SimulationSpeed[] = ['PAUSED', '1X', '2X', '4X', '8X'];
   const nextSpeed = () => {
+    soundEffects.playClickSound();
     const currentIndex = speedCycle.indexOf(state.speed);
     const next = speedCycle[(currentIndex + 1) % speedCycle.length] ?? '1X';
     onSetSpeed(next);
+  };
+
+  const handleToggleMute = () => {
+    const muted = soundEffects.toggleMute();
+    setIsMuted(muted);
+    if (!muted) {
+      soundEffects.playClickSound();
+    }
   };
 
   return (
@@ -56,8 +67,21 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
           </span>
         </div>
 
-        {/* Right: Reputation Stars & Quick Dispatch */}
+        {/* Right: Sound Toggle, Reputation & Quick Dispatch */}
         <div className="flex items-center space-x-1.5">
+          {/* Sound Mute/Unmute Toggle */}
+          <button
+            onClick={handleToggleMute}
+            className={`p-1.5 rounded-lg border transition-all active:scale-95 flex items-center justify-center ${
+              isMuted
+                ? 'bg-slate-100 text-slate-400 border-slate-300'
+                : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+            }`}
+            title={isMuted ? 'Aktifkan Suara Audio' : 'Bisukan Suara Audio'}
+          >
+            {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+          </button>
+
           {/* Reputation Pill */}
           <div className="flex items-center space-x-1 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">
             <Award className="w-3.5 h-3.5 text-amber-600" />
@@ -118,14 +142,20 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
           {/* Stepper buttons */}
           <div className="flex items-center space-x-0.5 bg-white p-0.5 rounded border border-slate-200">
             <button
-              onClick={() => onStepMinutes(1)}
+              onClick={() => {
+                soundEffects.playClickSound();
+                onStepMinutes(1);
+              }}
               className="px-1.5 py-0.5 hover:bg-slate-100 text-slate-600 hover:text-slate-900 rounded font-medium"
               title="+1 Menit"
             >
               +1m
             </button>
             <button
-              onClick={() => onStepMinutes(60)}
+              onClick={() => {
+                soundEffects.playClickSound();
+                onStepMinutes(60);
+              }}
               className="px-1.5 py-0.5 hover:bg-slate-100 text-slate-600 hover:text-slate-900 rounded font-medium"
               title="+1 Jam"
             >

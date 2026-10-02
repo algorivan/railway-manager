@@ -13,14 +13,21 @@ import {
   Sparkles,
   Coffee,
 } from 'lucide-react';
+import { soundEffects } from '../utils/soundEffects';
 
 interface ManagementHubScreenProps {
   readonly state: GameState;
+  readonly onClaimMission?: (missionId: string) => void;
+  readonly onRestEmployee?: (employeeId: string) => void;
 }
 
 type HubSection = 'missions' | 'finance' | 'workforce' | 'contracts';
 
-export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state }) => {
+export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({
+  state,
+  onClaimMission,
+  onRestEmployee,
+}) => {
   const [activeSection, setActiveSection] = useState<HubSection>('missions');
 
   const financeVm = createFinanceDashboardViewModel(state.generalLedger);
@@ -42,7 +49,10 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
           return (
             <button
               key={sec.id}
-              onClick={() => setActiveSection(sec.id)}
+              onClick={() => {
+                soundEffects.playClickSound();
+                setActiveSection(sec.id);
+              }}
               className={`py-1.5 px-1 rounded-lg flex flex-col items-center justify-center transition-all ${
                 isActive
                   ? 'bg-white text-blue-700 shadow-xs'
@@ -120,11 +130,11 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
                     </span>
                   ) : (
                     <button
-                      onClick={() => alert(`Selesaikan sasaran untuk mengklaim bonus ${mission.title}!`)}
-                      className="shrink-0 flex items-center space-x-1 px-2 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold shadow-2xs active:scale-95 transition-all"
+                      onClick={() => onClaimMission?.(mission.id)}
+                      className="shrink-0 flex items-center space-x-1 px-2.5 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold shadow-2xs active:scale-95 transition-all"
                     >
                       <Sparkles className="w-3 h-3" />
-                      <span>Klaim</span>
+                      <span>Klaim Bonus</span>
                     </button>
                   )}
                 </div>
@@ -283,8 +293,8 @@ export const ManagementHubScreen: React.FC<ManagementHubScreenProps> = ({ state 
                 </div>
 
                 <button
-                  onClick={() => alert(`Kru ${emp.name} beristirahat di mess dipo!`)}
-                  className="shrink-0 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 border border-slate-200 text-[11px] font-medium text-slate-700 flex items-center space-x-1 active:scale-95"
+                  onClick={() => onRestEmployee?.(emp.id)}
+                  className="shrink-0 px-2.5 py-1 rounded-md bg-amber-50 hover:bg-amber-100 border border-amber-200 text-[11px] font-semibold text-amber-800 flex items-center space-x-1 active:scale-95 shadow-2xs transition-all"
                 >
                   <Coffee className="w-3 h-3 text-amber-600" />
                   <span>Istirahat</span>

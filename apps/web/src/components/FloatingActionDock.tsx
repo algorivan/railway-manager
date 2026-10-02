@@ -1,5 +1,6 @@
 import React from 'react';
 import { Map, Calendar, Layers, ShoppingBag, Building2 } from 'lucide-react';
+import { soundEffects } from '../utils/soundEffects';
 
 export type FloatingTab = 'network' | 'timetable' | 'fleet' | 'procurement' | 'hub';
 
@@ -60,7 +61,10 @@ export const FloatingActionDock: React.FC<FloatingActionDockProps> = ({
         return (
           <button
             key={item.id}
-            onClick={() => onToggleTab(item.id)}
+            onClick={() => {
+              soundEffects.playClickSound();
+              onToggleTab(item.id);
+            }}
             title={item.tooltip}
             aria-label={item.tooltip}
             className={`w-10 h-10 rounded-full flex items-center justify-center relative transition-all duration-150 shadow-md active:scale-95 ${

@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Train,
 } from 'lucide-react';
+import { soundEffects } from '../utils/soundEffects';
 
 interface NetworkMapScreenProps {
   readonly state: GameState;
@@ -84,6 +85,7 @@ export const NetworkMapScreen: React.FC<NetworkMapScreenProps> = ({ state, onDis
 
       const marker = L.marker([station.lat, station.lng], { icon: customIcon }).addTo(map);
       marker.on('click', () => {
+        soundEffects.playClickSound();
         setSelectedStation(station);
         setSelectedRunId(null);
       });
@@ -148,6 +150,7 @@ export const NetworkMapScreen: React.FC<NetworkMapScreenProps> = ({ state, onDis
       } else {
         const marker = L.marker([lat, lng], { icon: trainIcon, zIndexOffset: 1000 }).addTo(map);
         marker.on('click', () => {
+          soundEffects.playClickSound();
           setSelectedRunId(run.id);
           setSelectedStation(null);
         });
@@ -157,15 +160,23 @@ export const NetworkMapScreen: React.FC<NetworkMapScreenProps> = ({ state, onDis
   }, [state.activeServices, state.timestamp.minuteOfDay]);
 
   // Zoom helpers
-  const zoomIn = () => mapInstanceRef.current?.zoomIn();
-  const zoomOut = () => mapInstanceRef.current?.zoomOut();
+  const zoomIn = () => {
+    soundEffects.playClickSound();
+    mapInstanceRef.current?.zoomIn();
+  };
+  const zoomOut = () => {
+    soundEffects.playClickSound();
+    mapInstanceRef.current?.zoomOut();
+  };
   const resetJavaView = () => {
+    soundEffects.playClickSound();
     mapInstanceRef.current?.flyTo([-7.3, 110.0], 7, { duration: 0.8 });
     setSelectedStation(null);
     setSelectedRunId(null);
   };
 
   const focusRegion = (region: 'WEST' | 'CENTRAL' | 'EAST') => {
+    soundEffects.playClickSound();
     if (!mapInstanceRef.current) return;
     if (region === 'WEST') {
       mapInstanceRef.current.flyToBounds(
@@ -296,7 +307,10 @@ export const NetworkMapScreen: React.FC<NetworkMapScreenProps> = ({ state, onDis
             </div>
 
             <button
-              onClick={() => setSelectedStation(null)}
+              onClick={() => {
+                soundEffects.playClickSound();
+                setSelectedStation(null);
+              }}
               className="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800"
             >
               <X className="w-3.5 h-3.5" />
@@ -341,7 +355,10 @@ export const NetworkMapScreen: React.FC<NetworkMapScreenProps> = ({ state, onDis
             </div>
 
             <button
-              onClick={() => setSelectedRunId(null)}
+              onClick={() => {
+                soundEffects.playClickSound();
+                setSelectedRunId(null);
+              }}
               className="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800"
             >
               <X className="w-3.5 h-3.5" />

@@ -5,6 +5,7 @@ import {
   createProcurementPipelineOrderViewModels,
 } from '@railway/ui';
 import { Factory, ShoppingBag } from 'lucide-react';
+import { soundEffects } from '../utils/soundEffects';
 
 interface ProcurementScreenProps {
   readonly state: GameState;
@@ -83,7 +84,10 @@ export const ProcurementScreen: React.FC<ProcurementScreenProps> = ({ state, onO
         ].map((cat) => (
           <button
             key={cat.id}
-            onClick={() => setFilterCat(cat.id)}
+            onClick={() => {
+              soundEffects.playClickSound();
+              setFilterCat(cat.id);
+            }}
             className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
               filterCat === cat.id
                 ? 'bg-blue-600 text-white shadow-xs'

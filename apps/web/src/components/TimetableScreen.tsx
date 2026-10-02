@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { GameState } from '@railway/simulation';
 import { formatClock, formatDuration, createGapekaChartViewModel } from '@railway/ui';
 import { Calendar, Play, CheckCircle2, Users } from 'lucide-react';
+import { soundEffects } from '../utils/soundEffects';
 
 interface TimetableScreenProps {
   readonly state: GameState;
@@ -35,7 +36,10 @@ export const TimetableScreen: React.FC<TimetableScreenProps> = ({ state, onDispa
         {/* Route Filter Scrollable Chips */}
         <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none">
           <button
-            onClick={() => setSelectedRouteId('ALL')}
+            onClick={() => {
+              soundEffects.playClickSound();
+              setSelectedRouteId('ALL');
+            }}
             className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
               selectedRouteId === 'ALL'
                 ? 'bg-blue-600 text-white shadow-xs'
@@ -47,7 +51,10 @@ export const TimetableScreen: React.FC<TimetableScreenProps> = ({ state, onDispa
           {routes.map((r) => (
             <button
               key={r.id}
-              onClick={() => setSelectedRouteId(r.id)}
+              onClick={() => {
+                soundEffects.playClickSound();
+                setSelectedRouteId(r.id);
+              }}
               className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                 selectedRouteId === r.id
                   ? 'bg-blue-600 text-white shadow-xs'
@@ -62,7 +69,10 @@ export const TimetableScreen: React.FC<TimetableScreenProps> = ({ state, onDispa
         {/* View Toggle */}
         <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
           <button
-            onClick={() => setViewMode('cards')}
+            onClick={() => {
+              soundEffects.playClickSound();
+              setViewMode('cards');
+            }}
             className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
               viewMode === 'cards'
                 ? 'bg-white text-slate-800 shadow-xs'
@@ -72,7 +82,10 @@ export const TimetableScreen: React.FC<TimetableScreenProps> = ({ state, onDispa
             Daftar
           </button>
           <button
-            onClick={() => setViewMode('gapeka')}
+            onClick={() => {
+              soundEffects.playClickSound();
+              setViewMode('gapeka');
+            }}
             className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
               viewMode === 'gapeka'
                 ? 'bg-white text-slate-800 shadow-xs'
