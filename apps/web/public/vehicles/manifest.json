@@ -1,0 +1,37 @@
+{
+  "description": "Generated concept illustrations, transparent side elevations. Visual reference, not engineering drawings.",
+  "assets": [
+    {
+      "id": "cc201",
+      "prompt": "Indonesian CC201 diesel-electric locomotive, classic single cab at the left end, small low short hood/nose ahead of cab, long rectangular engine hood to the right, six axles in two three-axle bogies, narrow hood with side walkways and safety handrails. User's requested orange livery: white/light gray upper body with broad saturated orange band along lower sides, dark charcoal roof and undercarriage, red buffer/pilot at left. Distinct traditional boxy cab and blunt low short hood. No fake readable serial number."
+    },
+    {
+      "id": "cc203",
+      "prompt": "Indonesian CC203 diesel-electric locomotive. Distinct wide streamlined cab at the left end with sloping forward nose and large dark windshield, long engine hood behind, side walkway and railings, six axles in two three-axle bogies. User's orange livery: white/light gray upper body, broad orange side band, dark gray roof and black undercarriage, red pilot at front. The cab silhouette must be different from the classic boxy CC201. No fake readable serial numbers."
+    },
+    {
+      "id": "cc206",
+      "prompt": "Indonesian CC206 diesel-electric locomotive with TWO driver cabs, one at each end of long body, both cab ends clearly visible in strict side elevation. Six axles in two three-axle bogies, central engine compartment with grilles and roof details. User's orange livery: white/light gray upper body, broad orange stripe along the lower body, charcoal undercarriage, dark windows, red pilots at both ends. Both driver cabs are essential. No fake readable serial numbers."
+    },
+    {
+      "id": "ekonomi",
+      "prompt": "Exactly one Indonesian economy-class passenger railway coach. Conventional white/light gray body with a bold orange lower-side band and dark gray roof. Many evenly spaced rectangular passenger windows, vestibule doors at both ends, two two-axle bogies, black underframe equipment, couplers at both ends. Clear classic utilitarian economy coach silhouette. No locomotive, no other coach, no fake text."
+    },
+    {
+      "id": "eksekutif",
+      "prompt": "Exactly one Indonesian executive-class passenger railway coach. Modern stainless steel silver body, neat orange horizontal stripe below windows, dark gray roof, large evenly spaced dark rectangular windows, clean vestibule doors at both ends, two two-axle bogies and realistic underframe. Refined modern executive coach appearance. No locomotive, no additional coach, no fake text."
+    },
+    {
+      "id": "luxury",
+      "prompt": "Exactly one Indonesian luxury passenger railway coach. Elegant stainless silver body with a restrained warm bronze/gold accent line, dark gray roof, large broad dark tinted windows with a refined luxurious appearance, vestibule doors at both ends, two two-axle bogies. Its window rhythm and subtle metallic trim distinguish it from an ordinary executive coach without fantasy modifications. No locomotive, no additional coach, no text."
+    },
+    {
+      "id": "pembangkit",
+      "prompt": "Exactly one Indonesian generator/power railway car. Modern stainless silver body with an orange band and dark gray roof, predominantly opaque side panels with large prominent ventilation louvers and engine air grilles, VERY FEW small service windows, access doors, two two-axle bogies, substantial generator equipment underneath and subtle roof exhaust. Clearly a power car, not a passenger coach. No locomotive, no additional vehicles, no text."
+    },
+    {
+      "id": "restorasi",
+      "prompt": "Exactly one Indonesian dining/restaurant railway coach. Stainless silver body with orange stripe and dark gray roof, a section of broad dining-room windows and a contrasting kitchen/service section with fewer smaller windows, service doors, ventilation details, two two-axle bogies and underframe equipment. Distinct dining coach silhouette. No locomotive, no additional coach, no text."
+    }
+  ]
+}
