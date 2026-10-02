@@ -3,6 +3,7 @@ import { Download, Upload } from "lucide-react";
 import { CORE_BALANCE as B } from "@railway/game-data";
 import {
   fuelQuote,
+  coreCrewNeeds,
   forecastCore,
   pace,
   stationName,
@@ -23,16 +24,29 @@ export function Office({
   act,
   exportSave,
   importSave,
+  notify,
 }: {
   state: CoreState;
   act: Act;
   exportSave: () => void;
   importSave: (file: File) => void;
+  notify: (message: string) => void;
 }) {
   const [depotId, setDepotId] = useState(s.hub),
     [liters, setLiters] = useState(1500);
   const [quote, setQuote] = useState(() => fuelQuote(Date.now()));
   const depot = s.depots.find((d) => d.station === depotId)!;
+  const staffing = s.trainsets.map((trainset) => ({
+    trainset,
+    needs: coreCrewNeeds(s, trainset),
+  }));
+  const totalStaff = staffing.reduce(
+    (total, row) => total + row.needs.totalCrew,
+    0,
+  );
+  const missingStaff = staffing
+    .filter((row) => !row.trainset.crew)
+    .reduce((total, row) => total + row.needs.totalCrew, 0);
   const completed = s.runs.filter((r) => r.status === "completed");
   const daily = s.plans
     .filter(
@@ -50,6 +64,66 @@ export function Office({
     );
   return (
     <div className="panel-scroll">
+      <Card title="SDM & rekrut otomatis">
+        <p>
+          Rekrut tim kru sesuai formasi dan jadwal aktif. Tim ditugaskan
+          otomatis ke trainset yang belum memiliki kontrak kru.
+        </p>
+        <div className="stats">
+          <div>
+            <strong>{totalStaff}</strong>
+            <small>Kebutuhan posisi</small>
+          </div>
+          <div>
+            <strong>{totalStaff - missingStaff}</strong>
+            <small>Terpenuhi</small>
+          </div>
+          <div>
+            <strong>{missingStaff}</strong>
+            <small>Belum terisi</small>
+          </div>
+        </div>
+        {!staffing.length && (
+          <p className="muted">
+            Buat trainset di Armada terlebih dahulu. Kebutuhan SDM akan muncul
+            di sini.
+          </p>
+        )}
+        {staffing.map(({ trainset, needs }) => (
+          <div className="list-row" key={trainset.id}>
+            <div>
+              <b>{trainset.name}</b>
+              <small>
+                {needs.masinis} masinis · {needs.tractionSupport} asisten
+                masinis · {needs.kondektur} kondektur · {needs.onboardService}{" "}
+                petugas layanan
+              </small>
+            </div>
+            <span className={`pill ${trainset.crew ? "good" : "warn"}`}>
+              {trainset.crew ? "Terpenuhi" : "Perlu rekrut"}
+            </span>
+          </div>
+        ))}
+        <button
+          className="primary"
+          disabled={!missingStaff}
+          onClick={() =>
+            act(
+              { type: "recruitAuto" },
+              `SDM otomatis direkrut: ${missingStaff} posisi untuk ${staffing.filter((row) => !row.trainset.crew).length} trainset. Kontrak kru aktif.`,
+            )
+          }
+        >
+          Rekrut otomatis sesuai kebutuhan
+        </button>
+        <p className="muted">
+          1 masinis per trainset dan 1 kondektur per 4 kereta penumpang. Asisten
+          mengikuti dinas panjang, malam atau berat; petugas layanan mengikuti
+          kereta restorasi/luxury. Kontrak tim menyesuaikan kebutuhan ketika
+          formasi atau jadwal berubah. Biaya tim {money(B.crewPerHour)}/jam
+          dinas sudah termasuk biaya operasi; tidak ada biaya rekrut awal.
+        </p>
+      </Card>
       <Card title="Fuel & ketahanan operasi">
         <label>
           Dipo
@@ -115,12 +189,17 @@ export function Office({
           >
             Beli · {compact(liters * quote.price)}
           </button>
-          <button onClick={() => setQuote(fuelQuote(Date.now()))}>
+          <button
+            onClick={() => {
+              setQuote(fuelQuote(Date.now()));
+              notify("Harga fuel diperbarui.");
+            }}
+          >
             Refresh quote
           </button>
         </div>
         <button
-          onClick={() =>
+          onClick={() => {
             setLiters(
               Math.min(
                 depot.capacity - depot.stock,
@@ -131,8 +210,11 @@ export function Office({
                   ) * 1.1,
                 ),
               ),
-            )
-          }
+            );
+            notify(
+              "Jumlah cadangan starter dipilih. Tekan Beli untuk membeli fuel.",
+            );
+          }}
         >
           Cadangan starter + tangki
         </button>

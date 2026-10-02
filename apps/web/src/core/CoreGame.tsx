@@ -8,6 +8,9 @@ import {
   ArrowRight,
   X,
   AlertTriangle,
+  BookOpen,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import {
   JAVA_STATION_CATALOG as stations,
@@ -29,10 +32,19 @@ import { Schedules } from "./Schedules";
 import { Market } from "./Market";
 import { Office } from "./Office";
 import { Card, compact, clock, type Act, type Screen } from "./presentation";
+import {
+  Feedback,
+  useFeedback,
+  actionMessages,
+  readPreference,
+  writePreference,
+} from "./feedback";
+import { Tutorial, TUTORIAL_KEY } from "./Tutorial";
 import "./core.css";
 const SAVE = "railway-manager-v7";
 
 export default function CoreGame() {
+  const feedback = useFeedback();
   const loadError = useRef("");
   const [state, setState] = useState<CoreState>(() => {
     const saved = localStorage.getItem(SAVE);
@@ -47,7 +59,9 @@ export default function CoreGame() {
   });
   const stateRef = useRef(state);
   const recentActions = useRef(new Map<string, { id: string; at: number }>());
-  const [screen, setScreen] = useState<Screen>("fleet");
+  const [screen, setScreen] = useState<Screen>(() =>
+    readPreference(TUTORIAL_KEY) ? "fleet" : "tutorial",
+  );
   const [open, setOpen] = useState(true);
   const [notice, setNotice] = useState(
     loadError.current ||
@@ -117,7 +131,16 @@ export default function CoreGame() {
       setError(true);
     }
   }, [state, saveBlocked, ownsSave]);
-  const act: Act = (action, message = "Perubahan tersimpan.") => {
+  const go = (target: Screen) => {
+    setScreen(target);
+    setOpen(true);
+  };
+  const notify = (message: string, failed = false) => {
+    setNotice(message);
+    setError(failed);
+    feedback.notify(message, failed);
+  };
+  const act: Act = (action, message = actionMessages[action.type]) => {
     try {
       if (saveBlocked)
         throw new Error("Pulihkan atau ekspor save lama sebelum melanjutkan.");
@@ -134,29 +157,32 @@ export default function CoreGame() {
       const next = applyCoreAction(stateRef.current, action, id, now);
       stateRef.current = next;
       setState(next);
-      setNotice(message);
-      setError(false);
+      notify(message);
       return true;
     } catch (e) {
-      setNotice((e as Error).message);
-      setError(true);
+      notify((e as Error).message, true);
       return false;
     }
   };
   const completed = state.runs.filter((r) => r.status === "completed");
   const contribution = completed.reduce((v, r) => v + r.revenue - r.cost, 0);
   const exportSave = () => {
-    const contents = saveBlocked
-      ? localStorage.getItem(SAVE)!
-      : serializeCore(stateRef.current);
-    const url = URL.createObjectURL(
-      new Blob([contents], { type: "application/json" }),
-    );
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "railway-manager-save.json";
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const contents = saveBlocked
+        ? localStorage.getItem(SAVE)!
+        : serializeCore(stateRef.current);
+      const url = URL.createObjectURL(
+        new Blob([contents], { type: "application/json" }),
+      );
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "railway-manager-save.json";
+      a.click();
+      URL.revokeObjectURL(url);
+      notify("File checkpoint disiapkan untuk diunduh.");
+    } catch (e) {
+      notify(`Ekspor gagal: ${(e as Error).message}`, true);
+    }
   };
   const importSave = async (file: File) => {
     try {
@@ -171,11 +197,9 @@ export default function CoreGame() {
       stateRef.current = next;
       setState(next);
       setSaveBlocked(false);
-      setNotice("Checkpoint diimpor; progres offline direkonsiliasi.");
-      setError(false);
+      notify("Checkpoint diimpor; progres offline direkonsiliasi.");
     } catch (e) {
-      setNotice(`Impor gagal: ${(e as Error).message}`);
-      setError(true);
+      notify(`Impor gagal: ${(e as Error).message}`, true);
     }
   };
   const nav = [
@@ -184,6 +208,7 @@ export default function CoreGame() {
     { id: "fleet", label: "Armada", icon: TrainFront },
     { id: "market", label: "Pasar", icon: Store },
     { id: "office", label: "Kantor", icon: Building2 },
+    { id: "tutorial", label: "Tutorial", icon: BookOpen },
   ] as const;
   return (
     <main className="core-game">
@@ -240,7 +265,9 @@ export default function CoreGame() {
                       ? "Diagram dinas"
                       : screen === "market"
                         ? "Pasar sarana"
-                        : "Kantor perusahaan"}
+                        : screen === "tutorial"
+                          ? "Panduan bermain"
+                          : "Kantor perusahaan"}
               </h1>
             </div>
             <button
@@ -251,9 +278,7 @@ export default function CoreGame() {
               <X size={20} />
             </button>
           </div>
-          {screen === "fleet" && (
-            <Fleet state={state} act={act} go={setScreen} />
-          )}
+          {screen === "fleet" && <Fleet state={state} act={act} go={go} />}
           {screen === "schedule" && <Schedules state={state} act={act} />}
           {screen === "market" && <Market state={state} act={act} />}
           {screen === "office" && (
@@ -262,6 +287,19 @@ export default function CoreGame() {
               act={act}
               exportSave={exportSave}
               importSave={importSave}
+              notify={notify}
+            />
+          )}
+          {screen === "tutorial" && (
+            <Tutorial
+              state={state}
+              go={go}
+              sound={feedback.sound}
+              toggleSound={feedback.toggleSound}
+              onContinue={() => {
+                writePreference(TUTORIAL_KEY, "seen");
+                go("fleet");
+              }}
             />
           )}
           {screen === "map" && (
@@ -336,7 +374,16 @@ export default function CoreGame() {
             <span>{label}</span>
           </button>
         ))}
+        <button
+          aria-label={feedback.sound ? "Nonaktifkan suara" : "Aktifkan suara"}
+          aria-pressed={feedback.sound}
+          onClick={feedback.toggleSound}
+        >
+          {feedback.sound ? <Volume2 size={20} /> : <VolumeX size={20} />}
+          <span>Suara</span>
+        </button>
       </nav>
+      <Feedback notices={feedback.notices} dismiss={feedback.dismiss} />
       <div
         role={error ? "alert" : "status"}
         className={`game-notice ${error ? "error" : ""}`}

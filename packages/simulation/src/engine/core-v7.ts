@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WorkloadCalculator } from "@railway/workforce";
 import {
   CORE_BALANCE as B,
   CORE_PRODUCTS,
@@ -423,6 +424,38 @@ export function forecastCore(
   };
   book(s, r, run, false);
   return run;
+}
+/** Contract roster adapts to formation and the largest active duty requirement. */
+export function coreCrewNeeds(s: CoreState, t: CoreTrainset) {
+  const f = coreFormation(s, t);
+  const duties = s.plans.filter((p) => p.trainsetId === t.id && p.active);
+  const rosters = (duties.length ? duties : [undefined]).map((plan) => {
+    const run = plan
+      ? forecastCore(s, t.id, plan.serviceId, plan.reverse, plan.nextAt)
+      : undefined;
+    return WorkloadCalculator.calculateServiceWorkload({
+      transitMinutes: run ? run.end - run.start : 1,
+      dwellMinutes: 0,
+      departureMinuteOfDay: run ? ((run.start % 1440) + 1440) % 1440 : 720,
+      passengerCarriageCount: f.products.filter((p) => p.kind === "coach")
+        .length,
+      hasDiningCar: f.products.some((p) => p.kind === "dining"),
+      hasLuxuryCarriage: f.products.some((p) => p.serviceClass === "LX"),
+      isFreightOnly: false,
+      consistWeightTons: f.weight,
+    }).roster;
+  });
+  const masinis = Math.max(...rosters.map((r) => r.masinis));
+  const tractionSupport = Math.max(...rosters.map((r) => r.tractionSupport));
+  const kondektur = Math.max(...rosters.map((r) => r.kondektur));
+  const onboardService = Math.max(...rosters.map((r) => r.onboardService));
+  return {
+    masinis,
+    tractionSupport,
+    kondektur,
+    onboardService,
+    totalCrew: masinis + tractionSupport + kondektur + onboardService,
+  };
 }
 export function coreReadiness(
   s: CoreState,
@@ -872,6 +905,7 @@ export type CoreAction =
   | { type: "fuel"; station: string; liters: number; bucket: number }
   | { type: "fill"; trainsetId: string }
   | { type: "crew"; trainsetId: string }
+  | { type: "recruitAuto" }
   | { type: "park"; trainsetId: string }
   | { type: "maintenance"; unitId: string; retrofit?: boolean }
   | { type: "swap"; trainsetId: string; oldUnitId: string; newUnitId: string }
@@ -1297,6 +1331,22 @@ export function applyCoreAction(
           d.stock -= amount;
         }
       }
+      break;
+    }
+    case "recruitAuto": {
+      const missing = s.trainsets.filter((t) => !t.crew);
+      if (!missing.length)
+        throw new Error(
+          s.trainsets.length
+            ? "Seluruh kebutuhan kru sudah terpenuhi."
+            : "Buat trainset terlebih dahulu agar kebutuhan SDM dapat dihitung.",
+        );
+      // Validate every target before assigning any contract.
+      for (const t of missing) {
+        idle(t);
+        coreCrewNeeds(s, t);
+      }
+      for (const t of missing) t.crew = true;
       break;
     }
     case "crew": {

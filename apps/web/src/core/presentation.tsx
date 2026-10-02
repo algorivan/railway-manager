@@ -53,4 +53,5 @@ export function Card({
   );
 }
 export type Act = (action: CoreAction, message?: string) => boolean;
-export type Screen = "map" | "schedule" | "fleet" | "market" | "office";
+export type Screen =
+  "map" | "schedule" | "fleet" | "market" | "office" | "tutorial";

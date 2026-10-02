@@ -1038,3 +1038,119 @@
     scroll-behavior: auto !important;
   }
 }
+
+.feedback-stack {
+  position: absolute;
+  z-index: 1100;
+  top: 100px;
+  right: 100px;
+  width: min(390px, calc(100% - 120px));
+  display: grid;
+  gap: 9px;
+  pointer-events: none;
+}
+.feedback-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 15px;
+  border-radius: 12px;
+  background: #f1fff8;
+  color: #17664e;
+  border: 1px solid #a5d5bf;
+  box-shadow: 0 8px 30px #17354a25;
+  animation: feedback-in 0.2s ease-out;
+}
+.feedback-toast.failed {
+  background: #fff3ef;
+  color: #9a3526;
+  border-color: #e4b2a7;
+}
+.feedback-toast > svg {
+  flex-shrink: 0;
+}
+.feedback-toast > div {
+  flex: 1;
+  min-width: 0;
+}
+.feedback-toast b {
+  font-size: 13px;
+}
+.feedback-toast p {
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+.feedback-toast .icon-button {
+  flex-shrink: 0;
+  color: inherit;
+}
+.tutorial-progress {
+  height: 8px;
+  background: #e4ece7;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.tutorial-progress span {
+  display: block;
+  height: 100%;
+  background: #249577;
+}
+.tutorial-step-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tutorial-step-title svg {
+  flex-shrink: 0;
+}
+.tutorial-step-title h3 {
+  margin: 0;
+  flex: 1;
+}
+.tutorial-step-title > span {
+  font-size: 9px;
+  color: var(--muted);
+}
+.tutorial-step.done .tutorial-step-title {
+  color: #168568;
+}
+@keyframes feedback-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (max-width: 700px) {
+  .feedback-stack {
+    top: 102px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+  }
+  .feedback-toast {
+    padding: 10px;
+  }
+  .core-game .game-dock button {
+    height: 46px;
+  }
+}
+@media (max-height: 650px) {
+  .game-dock {
+    gap: 2px;
+  }
+  .core-game .game-dock button {
+    height: 40px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .feedback-toast {
+    animation: none;
+  }
+}

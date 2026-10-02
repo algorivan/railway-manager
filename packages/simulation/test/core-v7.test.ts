@@ -4,6 +4,7 @@ import {
   applyCoreAction as apply,
   catchUpCore,
   coreFormation,
+  coreCrewNeeds,
   createCoreState,
   fuelQuote,
   previewCoreRoundTrip,
@@ -573,5 +574,79 @@ describe("v7 browser operations", () => {
     expect(
       after.ledger.filter((e) => e.id === `${runId}:dispatch`),
     ).toHaveLength(1);
+  });
+});
+
+describe("automatic crew recruitment", () => {
+  it("reports no demand before a trainset exists and rejects recruitment", () => {
+    const s = createCoreState(epoch);
+    expect(() => apply(s, { type: "recruitAuto" }, "recruit", epoch)).toThrow(
+      "Buat trainset",
+    );
+    expect(s.trainsets).toHaveLength(0);
+  });
+  it("fills missing contracts, persists them, and leaves cash unchanged", () => {
+    const s = setup();
+    s.trainsets[0]!.crew = false;
+    const next = apply(s, { type: "recruitAuto" }, "recruit", epoch);
+    expect(next.trainsets.every((t) => t.crew)).toBe(true);
+    expect(s.trainsets[0]!.crew).toBe(false);
+    expect(next.cash).toBe(s.cash);
+    expect(restoreCore(serializeCore(next)).trainsets[0]!.crew).toBe(true);
+    expect(apply(next, { type: "recruitAuto" }, "recruit", epoch)).toEqual(
+      next,
+    );
+    expect(() =>
+      apply(next, { type: "recruitAuto" }, "another", epoch),
+    ).toThrow("sudah terpenuhi");
+  });
+  it("recruits for multiple trainsets while retaining existing contracts", () => {
+    const s = setup(),
+      first = s.trainsets[0]!;
+    const extra = s.units.map((u) => ({ ...u, id: `reserve-${u.id}` }));
+    s.units.push(...extra);
+    s.trainsets.push({
+      ...first,
+      id: "reserve",
+      name: "Reserve",
+      units: extra.map((u) => u.id),
+      crew: false,
+    });
+    const next = apply(s, { type: "recruitAuto" }, "bulk-recruit", epoch);
+    expect(next.trainsets.map((t) => t.crew)).toEqual([true, true]);
+    expect(next.cash).toBe(s.cash);
+  });
+  it("rejects recruitment while a target is moving without changing contracts", () => {
+    const s = at(operating(), 423);
+    expect(s.runs.some((r) => r.status === "running")).toBe(true);
+    s.trainsets[0]!.crew = false;
+    expect(() =>
+      apply(s, { type: "recruitAuto" }, "moving-recruit", s.anchorMs),
+    ).toThrow("Tunggu trainset tiba");
+    expect(s.trainsets[0]!.crew).toBe(false);
+  });
+  it("derives staff roles from coaches, dining and luxury cars", () => {
+    const s = setup(),
+      t = s.trainsets[0]!;
+    const base = coreCrewNeeds(s, t);
+    expect(base.masinis).toBe(1);
+    expect(base.kondektur).toBe(1);
+    expect(base.onboardService).toBe(0);
+    // Roster preview also supports formation growth without inventing employees.
+    const coach = s.units.find((u) => u.productId === "ec-standard")!;
+    s.units.push({ ...coach, id: "extra-coach" });
+    t.units.push("extra-coach");
+    expect(coreCrewNeeds(s, t).kondektur).toBe(2);
+    const dining = { ...coach, id: "dining", productId: "dining" };
+    s.units.push(dining);
+    t.units.push(dining.id);
+    expect(coreCrewNeeds(s, t).onboardService).toBe(2);
+  });
+  it("adds an assistant for a night duty and keeps an active contract", () => {
+    const s = operating(),
+      t = s.trainsets[0]!;
+    s.plans[0]!.nextAt = 1380;
+    expect(coreCrewNeeds(s, t).tractionSupport).toBe(1);
+    expect(t.crew).toBe(true);
   });
 });
