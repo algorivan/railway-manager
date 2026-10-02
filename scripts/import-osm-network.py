@@ -9,6 +9,7 @@ import math
 import pathlib
 import re
 import subprocess
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -17,6 +18,67 @@ QUERY = '''[out:json][timeout:180];
 area["ISO3166-1"="ID"]["admin_level"="2"]->.country;
 (way["railway"="rail"](area.country);nwr["railway"~"^(station|halt)$"](area.country););
 out body; >; out skel qt;'''
+
+
+# Country filter retains only Indonesia; overlap joins border geometry safely.
+REGIONS = {
+    "sumatra": (-6.5, 94.5, 6.5, 106.5),
+    "java": (-9.5, 105.0, -5.5, 115.0),
+    "kalimantan": (-5.0, 108.0, 5.0, 119.0),
+    "sulawesi": (-6.5, 118.0, 2.5, 126.0),
+    "nusa-tenggara": (-11.5, 114.5, -7.5, 129.0),
+    "maluku": (-9.5, 125.0, 3.0, 132.0),
+    "papua": (-10.5, 130.0, 1.0, 141.5),
+}
+
+
+def download_snapshot(cache_path):
+    parts = cache_path.with_suffix(".parts")
+    parts.mkdir(parents=True, exist_ok=True)
+    def region(name, bounds, depth=0):
+        cached = parts / f"{name}.json"
+        if cached.exists():
+            data = json.loads(cached.read_text())
+            if isinstance(data.get("elements"), list) and not data.get("remark"):
+                print(f"Reuse {name}: {len(data['elements'])} elements", flush=True)
+                return data["elements"]
+        bbox = ",".join(str(value) for value in bounds)
+        query = ('[out:json][timeout:90];area["ISO3166-1"="ID"]["admin_level"="2"]->.country;'
+                 f'(way["railway"="rail"]({bbox})(area.country);nwr["railway"~"^(station|halt)$"]({bbox})(area.country););'
+                 'out body; >; out skel qt;')
+        print(f"Download {name} ...", flush=True)
+        request = urllib.request.Request("https://overpass-api.de/api/interpreter", data=urllib.parse.urlencode({"data": query}).encode(), headers={"User-Agent": "RailwayManagerDataImporter/1.0", "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                data = json.load(response)
+            if not isinstance(data.get("elements"), list) or data.get("remark"):
+                raise ValueError(f"Overpass returned partial/error data for {name}")
+        except (urllib.error.HTTPError, TimeoutError) as error:
+            if depth >= 2 or (isinstance(error, urllib.error.HTTPError) and error.code not in (502, 504)):
+                raise
+            south, west, north, east = bounds
+            if east - west >= north - south:
+                middle = (west + east) / 2
+                halves = [(south, west, north, middle), (south, middle, north, east)]
+            else:
+                middle = (south + north) / 2
+                halves = [(south, west, middle, east), (middle, west, north, east)]
+            print(f"{name} timed out; split into smaller requests", flush=True)
+            elements = region(name + '-a', halves[0], depth + 1) + region(name + '-b', halves[1], depth + 1)
+            data = {"elements": elements}
+        cached.write_text(json.dumps(data, ensure_ascii=False))
+        print(f"Ready {name}: {len(data['elements'])} elements", flush=True)
+        return data["elements"]
+    elements = []
+    for name, bounds in REGIONS.items():
+        elements.extend(region(name, bounds))
+    if not elements:
+        raise ValueError("No data returned; refusing to replace snapshot")
+    result = {"elements": elements}
+    temporary = cache_path.with_suffix(".download.tmp")
+    temporary.write_text(json.dumps(result, ensure_ascii=False))
+    temporary.replace(cache_path)
+    return result
 
 
 def distance(a, b):
@@ -234,14 +296,8 @@ def main():
     parser.add_argument("--output", type=pathlib.Path, default=ROOT / "packages/game-data/src/catalog/osm-network-data.ts")
     args = parser.parse_args()
     if args.download:
-        request = urllib.request.Request("https://overpass-api.de/api/interpreter", data=urllib.parse.urlencode({"data": QUERY}).encode(), headers={"User-Agent": "RailwayManagerDataImporter/1.0"})
-        with urllib.request.urlopen(request, timeout=240) as response:
-            content = response.read()
-        parsed = json.loads(content)
-        if parsed.get("remark") or not parsed.get("elements"):
-            raise ValueError("Overpass query failed or returned no data")
         args.input.parent.mkdir(parents=True, exist_ok=True)
-        args.input.write_bytes(content)
+        download_snapshot(args.input)
     legacy = json.loads(subprocess.check_output(["node", "--input-type=module", "-e", "import {JAVA_STATION_CATALOG as stations} from './packages/game-data/dist/catalog/stations.js'; import {JAVA_TRACK_CORRIDOR_SEGMENTS as tracks} from './packages/game-data/dist/catalog/tracks.js'; console.log(JSON.stringify({stations,tracks}));"], cwd=ROOT))
     snapshot = compile_network(json.loads(args.input.read_text()), legacy["stations"], legacy["tracks"])
     if not any(s["kind"] == "station" for s in snapshot["stations"]):

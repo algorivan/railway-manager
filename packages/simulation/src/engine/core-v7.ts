@@ -1404,59 +1404,13 @@ export function applyCoreAction(
     case "diagram": {
       const t = train(action.trainsetId);
       idle(t);
-      if (
-        ![1440, 2880, 4320].includes(action.cycle) ||
-        action.duties.length < 2 ||
-        action.duties.length > 24
-      )
-        throw new Error(
-          "Diagram memerlukan 2–24 dinas dalam siklus 24/48/72 jam.",
-        );
       if (s.plans.some((p) => p.trainsetId === t.id && p.active))
         throw new Error("Nonaktifkan diagram sebelumnya dahulu.");
-      const duties = [...action.duties].sort((a, b) => a.offset - b.offset);
-      const previews = duties.map((d) => {
-        if (
-          !Number.isFinite(d.offset) ||
-          d.offset < 0 ||
-          d.offset >= action.cycle
-        )
-          throw new Error("Waktu dinas di luar siklus.");
-        return forecastCore(s, t.id, d.serviceId, d.reverse, d.offset);
-      });
-      if (previews[0]!.origin !== t.location)
-        throw new Error("Awal diagram tidak sesuai lokasi trainset.");
-      for (let i = 0; i < previews.length; i++) {
-        const run = previews[i]!,
-          following = previews[(i + 1) % previews.length]!;
-        const turnaround =
-          run.serviceId === following.serviceId &&
-          run.origin === following.destination
-            ? B.turnaroundMinutes
-            : B.changeServiceMinutes;
-        if (run.destination !== following.origin)
-          throw new Error(
-            `Lokasi ${stationName(run.destination)} tidak sama dengan ${stationName(following.origin)}; tambahkan dinas penghubung.`,
-          );
-        if (
-          run.serviceId !== following.serviceId &&
-          !s.depots.some((d) => d.station === run.destination)
-        )
-          throw new Error(
-            "Pergantian relasi memerlukan fasilitas kontrak dipo/service.",
-          );
-        if (
-          run.end + turnaround >
-          following.start + (i === previews.length - 1 ? action.cycle : 0)
-        )
-          throw new Error(
-            "Dinas bertumpuk atau jeda tidak cukup, termasuk sambungan siklus berikutnya.",
-          );
-      }
+      const preview = previewCoreDiagram(s, t.id, action.cycle, action.duties);
+      if (preview.issues.length) throw new Error(preview.issues[0]);
+      const duties = preview.duties;
       const base = Math.floor(s.minute / action.cycle) * action.cycle;
       const shift = base + duties[0]!.offset < s.minute ? action.cycle : 0;
-      if (base + shift + duties[0]!.offset < t.readyAt)
-        throw new Error("Dinas pertama dimulai sebelum jeda persiapan selesai.");
       duties.forEach((d, i) =>
         s.plans.push({
           id: `${id}:${i}`,
@@ -2104,4 +2058,43 @@ export function previewCoreRoundTrip(
 export function coreServiceName(origin: string, destination: string): string {
   const code = (id: string) => STATIONS.find((station) => station.id === id)?.code ?? id;
   return `${code(origin)} – ${code(destination)}`;
+}
+
+export interface CoreDuty { serviceId: string; reverse: boolean; offset: number }
+/** Shared by the timetable and activation: forecast only, never mutates company state. */
+export function previewCoreDiagram(s: CoreState, trainsetId: string, cycle: number, input: CoreDuty[]) {
+  const duties = [...input].sort((a, b) => a.offset - b.offset);
+  const runs: CoreRun[] = [], issues: string[] = [];
+  const t = s.trainsets.find((t) => t.id === trainsetId);
+  if (!t) return { duties, runs, issues: ["Pilih trainset untuk menyusun pola."] };
+  if (![1440, 2880, 4320].includes(cycle) || duties.length < 2 || duties.length > 24)
+    issues.push("Diagram memerlukan 2–24 dinas dalam siklus 24/48/72 jam.");
+  if (!duties.length) return { duties, runs, issues };
+  for (const d of duties) {
+    if (!Number.isFinite(d.offset) || d.offset < 0 || d.offset >= cycle)
+      return { duties, runs, issues: [...issues, "Waktu dinas di luar siklus."] };
+    try { runs.push(forecastCore(s, t.id, d.serviceId, d.reverse, d.offset)); }
+    catch (error) { return { duties, runs, issues: [...issues, (error as Error).message] }; }
+  }
+  if (runs[0]!.origin !== t.location)
+    issues.push("Awal diagram tidak sesuai lokasi trainset.");
+  for (let i = 0; i < runs.length; i++) {
+    const run = runs[i]!, following = runs[(i + 1) % runs.length]!;
+    const turnaround = coreDutyTurnaround(run, following);
+    if (run.destination !== following.origin)
+      issues.push(`Lokasi ${stationName(run.destination)} tidak sama dengan ${stationName(following.origin)}; tambahkan dinas penghubung.`);
+    if (run.serviceId !== following.serviceId && !s.depots.some((d) => d.station === run.destination))
+      issues.push("Pergantian relasi memerlukan fasilitas kontrak dipo/service.");
+    if (run.end + turnaround > following.start + (i === runs.length - 1 ? cycle : 0))
+      issues.push("Dinas bertumpuk atau jeda tidak cukup, termasuk sambungan siklus berikutnya.");
+  }
+  const base = Math.floor(s.minute / cycle) * cycle;
+  const first = base + duties[0]!.offset;
+  if (first + (first < s.minute ? cycle : 0) < t.readyAt)
+    issues.push("Dinas pertama dimulai sebelum jeda persiapan selesai.");
+  return { duties, runs, issues: [...new Set(issues)] };
+}
+export function coreDutyTurnaround(run: CoreRun, following?: CoreRun): number {
+  return following && run.serviceId !== following.serviceId
+    ? B.changeServiceMinutes : B.turnaroundMinutes;
 }

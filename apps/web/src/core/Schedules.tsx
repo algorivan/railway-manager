@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, ArrowRight, ShieldCheck, Play, X } from "lucide-react";
+import { Plus, ArrowRight, ShieldCheck, Play } from "lucide-react";
 import {
   CORE_FARES,
   CORE_SELECTABLE_STATIONS as stations,
@@ -9,6 +9,8 @@ import {
 import {
   findCorePath,
   coreServiceName,
+  previewCoreDiagram,
+  coreDutyTurnaround,
   coreFormation,
   coreReadiness,
   previewCoreRoundTrip,
@@ -19,6 +21,7 @@ import {
 import { Card, clock, when, money, compact, type Act } from "./presentation";
 import { RunReport } from "./RunReport";
 import { StationPicker } from "./StationPicker";
+import { TimetableEditor } from "./TimetableEditor";
 
 export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
   const [wizard, setWizard] = useState(false),
@@ -528,8 +531,7 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
           {advanced && (
             <>
               <p>
-                Editor memakai pilihan trainset, relasi, siklus dan hari/jam
-                pada penugasan di atas.
+                Pilih trainset dan siklus di atas. Tambahkan relasi, lalu atur dinas langsung pada timetable.
               </p>
               <button
                 disabled={!rid || !tid}
@@ -553,29 +555,18 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
               >
                 Tambah dinas balik pada {when(offset)}
               </button>
-              {selectedT && duties.map((d, i) => (
-                <div className="list-row" key={i}>
-                  <div>
-                    <b>
-                      {s.services.find((r) => r.id === d.serviceId)?.name}{" "}
-                      {d.reverse ? "←" : "→"}
-                    </b>
-                    <small>{when(d.offset)} → {when(forecastCore(s, tid, d.serviceId, d.reverse, d.offset).end)}</small>
-                    <small>{stationName(forecastCore(s, tid, d.serviceId, d.reverse, d.offset).origin)} → {stationName(forecastCore(s, tid, d.serviceId, d.reverse, d.offset).destination)}</small>
-                  </div>
-                  <button
-                    aria-label={`Hapus dinas ${i + 1}`}
-                    onClick={() =>
-                      setDuties(duties.filter((_, index) => index !== i))
-                    }
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
+              <button disabled={!selectedT || !duties.length} onClick={() => {
+                const last = [...duties].sort((a, b) => a.offset - b.offset).at(-1)!;
+                const run = forecastCore(s, tid, last.serviceId, last.reverse, last.offset);
+                const relation = selectedR?.stations.includes(run.destination) ? selectedR : s.services.find((r) => r.id === last.serviceId)!;
+                const back = relation.stations.at(-1) === run.destination;
+                const next = forecastCore(s, tid, relation.id, back);
+                setDuties([...duties, { serviceId: relation.id, reverse: back, offset: Math.ceil(run.end + coreDutyTurnaround(run, next)) }]);
+              }}>Tambah dinas berikutnya setelah tiba & jeda</button>
+              {selectedT && <TimetableEditor state={s} trainsetId={tid} cycle={cycle} duties={duties} onChange={setDuties} />}
               <button
                 className="primary"
-                disabled={!tid || duties.length < 2}
+                disabled={!tid || previewCoreDiagram(s, tid, cycle, duties).issues.length > 0}
                 onClick={() =>
                   act(
                     { type: "diagram", trainsetId: tid, cycle, duties },

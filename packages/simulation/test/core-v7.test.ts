@@ -10,6 +10,7 @@ import {
   createCoreState,
   fuelQuote,
   previewCoreRoundTrip,
+  previewCoreDiagram,
   restoreCore,
   serializeCore,
   type CoreAction,
@@ -130,6 +131,20 @@ describe("v7 browser operations", () => {
     expect(new Set(saved.plans.map((p) => p.trainsetId)).size).toBe(1);
     expect(() => apply(s, { ...action, duties: open }, "open", epoch)).toThrow("Lokasi");
     expect(() => apply(s, { ...action, duties: duties.map((d, i) => i === 2 ? { ...d, offset: duties[1]!.offset + 1 } : d) }, "overlap", epoch)).toThrow("jeda");
+  });
+  it("previews time blocks through midnight without mutating the saved company", () => {
+    const s = setup(), tid = s.trainsets[0]!.id, serviceId = s.services[0]!.id;
+    const first = forecastCore(s, tid, serviceId, false, 1380);
+    const duties = [{ serviceId, reverse: false, offset: 1380 }, { serviceId, reverse: true, offset: Math.ceil(first.end + 60) }];
+    const before = serializeCore(s);
+    const preview = previewCoreDiagram(s, tid, 2880, duties);
+    expect(preview.issues).toEqual([]);
+    expect(preview.runs[0]!.end).toBeGreaterThan(1440);
+    expect(preview.runs[1]!.start).toBeGreaterThan(1440);
+    expect(serializeCore(s)).toBe(before);
+    const invalid = previewCoreDiagram(s, tid, 2880, [duties[0]!, { ...duties[1]!, offset: 1400 }]);
+    expect(invalid.issues.some((issue) => issue.includes("jeda"))).toBe(true);
+    expect(() => apply(s, { type: "diagram", trainsetId: tid, cycle: 2880, duties: invalid.duties }, "bad-blocks", epoch)).toThrow(invalid.issues[0]);
   });
   it("distinguishes passed stations from commercial stops and does not add dwell to a pass", () => {
     let s = setup();

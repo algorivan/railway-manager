@@ -1506,3 +1506,28 @@
     flex-wrap: wrap;
   }
 }
+
+/* Timetable keeps journey length fixed while departure slots move. */
+.timetable-editor { margin-top: 1rem; }
+.timetable-window { flex-wrap: wrap; }
+.timetable-scroll { overflow-x: auto; margin: 1.25rem 0 .5rem; border: 1px solid #cbd5e1; border-radius: 10px; padding: 20px 18px 10px; }
+.timetable-grid { min-width: 560px; }
+.timetable-axis { height: 30px; position: relative; font-size: 10px; color: #475569; }
+.timetable-axis span { position: absolute; transform: translateX(-50%); }
+.timetable-lane { position: relative; height: 54px; background: #f1f5f9; border-bottom: 1px solid #cbd5e1; cursor: crosshair; overflow: hidden; }
+.timetable-gridline { position: absolute; height: 100%; border-left: 1px solid #dbe3ec; pointer-events: none; }
+.core-game button.timetable-block { position: absolute; top: 8px; height: 36px; min-width: 0; padding: 0 4px; border-radius: 5px; background: #2563eb; color: white; border: 1px solid #1d4ed8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: grab; touch-action: none; font-size: 11px; }
+.core-game button.timetable-block:active { cursor: grabbing; }
+.core-game button.timetable-block.conflict { background: #dc2626; border-color: #991b1b; }
+.timetable-rest { position: absolute; top: 8px; height: 36px; background: repeating-linear-gradient(135deg, #e2e8f0, #e2e8f0 4px, #94a3b8 4px, #94a3b8 5px); border-radius: 3px; pointer-events: none; }
+.timetable-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: #2563eb; }
+.timetable-duty { display: grid; gap: 8px; padding: 12px 0; border-bottom: 1px solid #e2e8f0; }
+.timetable-duty small { color: #64748b; }
+.timetable-duty .field-pair { flex-wrap: wrap; }
+.timetable-duty button { justify-self: start; }
+
+.core-game button.timetable-block:hover { background: #1d4ed8; color: white; }
+.core-game button.timetable-block.conflict:hover { background: #b91c1c; }
+.timetable-duty .field-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.timetable-duty .field-pair label { min-width: 0; }
+.timetable-legend .warning-text { color: #dc2626; }

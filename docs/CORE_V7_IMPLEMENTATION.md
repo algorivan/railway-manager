@@ -57,4 +57,4 @@ Validation includes recruitment unit tests (empty demand, persistence, repeated 
 
 ## Operating-map and onboarding update
 
-See [Operating map, motion and company onboarding](OPERATING_MAP_AND_ONBOARDING.md) for the later sidebar/depot changes, mandatory new-company setup, mission rewards and variable-speed model. The national OSM snapshot remains pending network access; the original seven-station/nine-corridor catalog is preserved for legacy saves.
+See [Operating map, motion and company onboarding](OPERATING_MAP_AND_ONBOARDING.md) for the later sidebar/depot changes, mandatory new-company setup, mission rewards and variable-speed model. The national OSM snapshot remains pending successful regional Overpass downloads (the endpoint is reachable, but large requests currently return HTTP 504); the original seven-station/nine-corridor catalog is preserved for legacy saves.
