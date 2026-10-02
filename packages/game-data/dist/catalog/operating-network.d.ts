@@ -1,5 +1,6 @@
 import type { StationCatalogEntry } from "../schemas/station.schema.js";
 import type { TrackCorridorSegment } from "../schemas/track.schema.js";
+import { type StationDemandContext } from "./station-demand.js";
 export type RailPoint = [number, number];
 export interface OsmNetworkSnapshot {
     importedAt: string | null;
@@ -40,6 +41,7 @@ export interface OperatingStation extends Omit<StationCatalogEntry, "region"> {
     province?: string;
     stationClass?: string;
     city?: string;
+    demandContext?: StationDemandContext;
 }
 export interface OperatingTrack extends TrackCorridorSegment {
     geometry?: RailPoint[];
@@ -47,6 +49,24 @@ export interface OperatingTrack extends TrackCorridorSegment {
     schematic: boolean;
     gradientPermille?: number;
 }
+export declare const CORE_GAME_CORRIDORS: {
+    trackSpeedLimitKmh: number;
+    maxSpeedKmh: number;
+    id: string;
+    name: string;
+    provenance: {
+        source: string;
+        sourceDate: string;
+        verified: boolean;
+        notes?: string | undefined;
+    };
+    originStationId: string;
+    destinationStationId: string;
+    distanceKm: number;
+    isElectrified: boolean;
+    isDoubleTrack: boolean;
+    trackGaugeMm: number;
+}[];
 export declare const CORE_OPERATING_STATIONS: readonly OperatingStation[];
 export declare const CORE_SELECTABLE_STATIONS: OperatingStation[];
 export declare const CORE_OPERATING_TRACKS: readonly OperatingTrack[];
@@ -57,6 +77,7 @@ export declare const CORE_NETWORK_SOURCE: {
     connectedStationCount: number;
     source: string;
     intermediateStationCount: number;
+    gameCorridorCount: number;
 };
 export declare function operatingTrackAccessible(track: OperatingTrack, access: readonly string[]): boolean;
 export declare function operatingTrackGeometry(id: string, from?: string): RailPoint[];

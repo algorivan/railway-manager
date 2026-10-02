@@ -4,7 +4,9 @@ import { JAVA_STATION_CATALOG } from "./stations.js";
 import { JAVA_TRACK_CORRIDOR_SEGMENTS } from "./tracks.js";
 import { CORE_STATION_PROVINCE } from "./gameplay-v7.js";
 import { INTERMEDIATE_STATIONS, SCHEMATIC_CORRIDOR_STOPS } from "./intermediate-stations.js";
+import { EAST_JAVA_STATIONS, EAST_JAVA_CORRIDORS, EAST_JAVA_CORRIDOR_STOPS } from "./east-java.js";
 import { LEGACY_INTERMEDIATE_SEGMENTS } from "./legacy-intermediate-segments.js";
+import { stationDemandFor, type StationDemandContext } from "./station-demand.js";
 import { OSM_NETWORK_DATA } from "./osm-network-data.js";
 
 export type RailPoint = [number, number]; // Latitude, longitude (Leaflet order).
@@ -44,6 +46,7 @@ export interface OperatingStation extends Omit<StationCatalogEntry, "region"> {
   province?: string;
   stationClass?: string;
   city?: string;
+  demandContext?: StationDemandContext;
 }
 export interface OperatingTrack extends TrackCorridorSegment {
   geometry?: RailPoint[];
@@ -51,16 +54,21 @@ export interface OperatingTrack extends TrackCorridorSegment {
   schematic: boolean;
   gradientPermille?: number;
 }
-const activeIntermediateIds = new Set(Object.entries(SCHEMATIC_CORRIDOR_STOPS)
+export const CORE_GAME_CORRIDORS = [...JAVA_TRACK_CORRIDOR_SEGMENTS, ...EAST_JAVA_CORRIDORS];
+const corridorStops = { ...SCHEMATIC_CORRIDOR_STOPS, ...EAST_JAVA_CORRIDOR_STOPS };
+const activeIntermediateIds = new Set(Object.entries(corridorStops)
   .filter(([corridor]) => !OSM_NETWORK_DATA.legacyRoutes[corridor])
-  .flatMap(([, stops]) => [...stops]));
-const curatedStations: OperatingStation[] = INTERMEDIATE_STATIONS.map((station) => ({
+  .flatMap(([id, stops]) => {
+    const parent = CORE_GAME_CORRIDORS.find((track) => track.id === id)!;
+    return [parent.originStationId, ...stops, parent.destinationStationId];
+  }));
+const curatedStations: OperatingStation[] = [...INTERMEDIATE_STATIONS, ...EAST_JAVA_STATIONS].map((station) => ({
   ...station, kind: "station", connected: activeIntermediateIds.has(station.id), region: "JAVA_INTERMEDIATE",
   platformCount: 1, maxTrainLengthMeters: 180,
   facilities: { hasCargoTerminal: false, hasDepotConnection: false, hasExecutiveLounge: false },
   demandProfile: { baseDailyDemand: 1000, commuterShare: 0.5, businessShare: 0.25, touristShare: 0.25 },
   provenance: { source: `OpenStreetMap ${station.osmId} (ODbL 1.0)`, sourceDate: "2026-10-02", verified: false,
-    notes: "Actual OSM station position/code. Corridor membership/province curated for game; class, platform and demand unverified/provisional. Rail connections remain schematic." },
+    notes: "Actual OSM station position/code. Corridor membership/province curated for game; class and platform unverified; demand is a station-specific provisional catchment estimate. Rail connections remain schematic." },
 }));
 const originalStations = new Map(JAVA_STATION_CATALOG.map((s) => [s.id, s]));
 const importedStations: OperatingStation[] = OSM_NETWORK_DATA.stations.map(
@@ -91,13 +99,13 @@ const importedStations: OperatingStation[] = OSM_NETWORK_DATA.stations.map(
         sourceDate: OSM_NETWORK_DATA.importedAt?.slice(0, 10) ?? "1970-01-01",
         verified: false,
         notes:
-          "OSM coordinates/topology. Station class, platform length, demand and operational rules require verification; new-station capacity/demand are provisional game defaults.",
+          "OSM coordinates/topology. Station class, platform length, demand and operational rules require verification; new-station capacity and catchment demand are provisional game parameters.",
       },
     };
   },
 );
 const importedIds = new Set(importedStations.map((s) => s.id));
-export const CORE_OPERATING_STATIONS: readonly OperatingStation[] = [
+const stationCatalog: readonly OperatingStation[] = [
   ...JAVA_STATION_CATALOG.filter((s) => !importedIds.has(s.id)).map((s) => ({
     ...s,
     kind: "station" as const,
@@ -107,15 +115,21 @@ export const CORE_OPERATING_STATIONS: readonly OperatingStation[] = [
   ...curatedStations.filter((station) => !importedIds.has(station.id)),
   ...importedStations,
 ];
+export const CORE_OPERATING_STATIONS: readonly OperatingStation[] = stationCatalog.map((station) => {
+  if (station.kind === "junction") return station;
+  const legacy = originalStations.get(station.id)?.demandProfile;
+  const { profile, context } = stationDemandFor(station.code, station.name, legacy);
+  return { ...station, demandProfile: profile, demandContext: context };
+});
 export const CORE_SELECTABLE_STATIONS = CORE_OPERATING_STATIONS.filter(
   (s) => s.kind === "station",
 );
 /** Split game corridors at actual station points; never claim the chords are rail geometry. */
 const schematicTracks: OperatingTrack[] = [];
 const schematicRoutes: Record<string, string[]> = {};
-for (const parent of JAVA_TRACK_CORRIDOR_SEGMENTS) {
+for (const parent of CORE_GAME_CORRIDORS) {
   if (OSM_NETWORK_DATA.legacyRoutes[parent.id]) continue;
-  const stops = SCHEMATIC_CORRIDOR_STOPS[parent.id];
+  const stops = corridorStops[parent.id];
   if (!stops?.length) continue;
   const ids = [parent.originStationId, ...stops, parent.destinationStationId];
   const weights = ids.slice(1).map((to, index) => {
@@ -147,7 +161,7 @@ const legacyIntermediateTracks: OperatingTrack[] = LEGACY_INTERMEDIATE_SEGMENTS.
 });
 const legacyIntermediateIds = new Set(legacyIntermediateTracks.map((edge) => edge.id));
 export const CORE_OPERATING_TRACKS: readonly OperatingTrack[] = [
-  ...JAVA_TRACK_CORRIDOR_SEGMENTS.map((s) => ({
+  ...CORE_GAME_CORRIDORS.map((s) => ({
     ...s,
     accessKeys: [s.id],
     schematic: !OSM_NETWORK_DATA.legacyRoutes[s.id],
@@ -189,6 +203,7 @@ export const CORE_NETWORK_SOURCE = {
     .length,
   source: OSM_NETWORK_DATA.source,
   intermediateStationCount: curatedStations.length,
+  gameCorridorCount: CORE_GAME_CORRIDORS.length,
 };
 export function operatingTrackAccessible(
   track: OperatingTrack,

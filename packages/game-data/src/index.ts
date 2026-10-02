@@ -17,3 +17,6 @@ export * from './catalog/operating-network.js';
 export * from './catalog/company-onboarding.js';
 
 export * from "./catalog/intermediate-stations.js";
+
+export * from "./catalog/station-demand.js";
+export * from "./catalog/east-java.js";

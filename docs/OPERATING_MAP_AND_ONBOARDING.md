@@ -80,10 +80,47 @@ The user-supplied `rail-map-of-java.pdf` identifies itself as the FDTJ Java rail
 | Solo–Surabaya | 10 |
 | Semarang–Solo | 7 |
 
-Shared stations appear in multiple corridors but have one selectable identity. All 122 stations (seven original hubs plus 115 intermediate points) are available to the relation picker. New paths traverse the intermediate stations; each can be an origin, destination, commercial stop or pass-through. Commercial stops use three game minutes of dwell and the shared acceleration/braking model. Class, platform and demand remain unverified; new platform capacity (180 m) and demand (1,000/day) are conservative provisional game rules. Province and corridor order are curated configuration, not additional OSM metadata. Brambanan is assigned to Central Java, while Maguwo, Lempuyangan and Wates are in DI Yogyakarta.
+Shared stations appear in multiple corridors but have one selectable identity. All 185 stations (seven original hubs plus 115 initial intermediate points and 63 eastern extension stations) are available to the relation picker. New paths traverse the intermediate stations; each can be an origin, destination, commercial stop or pass-through. Commercial stops use three game minutes of dwell and the shared acceleration/braking model. Class, platform and demand remain unverified; new platform capacity (180 m) and the station-specific demand estimates described below are provisional game rules. Province and corridor order are curated configuration, not additional OSM metadata. Brambanan is assigned to Central Java, while Maguwo, Lempuyangan and Wates are in DI Yogyakarta.
 
 Each fallback corridor is split into schematic edges using station coordinates. Section distances allocate the original game corridor distance in proportion to the chords; they are game estimates, not measured railway kilometres. Shared corridors can have different distance estimates; routing selects the shortest accessible game path. Child edges inherit access and conservative occupancy from their parent corridor. Real imported corridor paths take precedence when available. The map and station provenance explicitly identify the schematic links. This does not establish surveyed railway alignment, physical block layout or complete Indonesian coverage.
 
 New schematic segment IDs use parent corridor plus endpoint IDs. `legacy-intermediate-segments.ts` preserves the 83 numbered segment definitions from the first intermediate-station release, including their original distances; these aliases are excluded from new routing and map rendering. Future expansions must preserve any retired segment definitions before splitting them, so saved services and active runs remain resolvable. A regression check restores a numbered Bandung–Gambir service and validates its original forecast.
 
 Legacy corridor IDs remain in the catalog and existing saved services/runs keep their original station lists and timing; new services use the expanded routing. Tests cover every corridor's connectivity/access and positive distances, station/code uniqueness, selectable small-station endpoints, commercial-stop dwell versus passing, location/turnaround validation and old saved trains finishing their existing run.
+
+
+## Eastern Java extension
+
+`east-java.ts` adds 63 unique OSM station nodes, obtained on 2026-10-02, and eight mainline game corridors. It reuses existing Kertosono and Wonokromo identities. Banyuwangi Kota (`BWI`) and Ketapang (`KTG`, formerly Banyuwangi Baru) are separate selectable endpoints. The historical inactive Banyuwangi branch is not included. Station order is curated against the supplied 2022 FDTJ map and OSM positions. Some smaller stops (for example Blimbing, Sengon, Wonokerto, Waru, Gedangan and Buduran) await sourced coordinates; the section passes through their corridor without claiming a complete stop list. Larger geographic queries returned 406/504; successful station-only and indexed code/name queries supplied the shipped data. No coordinates were invented.
+
+| Game corridor | Provisional distance | Conservative game cap |
+| --- | ---: | ---: |
+| Kertosono–Blitar, via Kediri and Tulungagung | 120 km | 60 km/h |
+| Blitar–Malang, via Wlingi and Kepanjen | 80 km | 50 km/h |
+| Malang–Bangil, via Singosari and Lawang | 65 km | 50 km/h |
+| Wonokromo–Bangil, via Sidoarjo and Porong | 45 km | 60 km/h |
+| Bangil–Probolinggo, via Pasuruan | 70 km | 60 km/h |
+| Probolinggo–Jember, via Klakah and Rambipuji | 100 km | 60 km/h |
+| Jember–Banyuwangi Kota, via Kalisat, Mrawan and Rogojampi | 105 km | 50 km/h |
+| Banyuwangi Kota–Ketapang, via Argopuro | 15 km | 60 km/h |
+
+These are rounded balance distances and speed ceilings, not measured railway kilometres, official limits or contour-derived grades. Station chords allocate each parent distance; unknown gradient remains unknown. New corridors conservatively reserve single-track occupancy. Acceleration, braking, lower section caps and three-minute commercial dwell still use the shared movement model. The map menu exposes full-corridor access purchases (Rp25 million) through the existing connected-network and completed-PP expansion rules, plus individual sections. Its old 100-section display cutoff has been removed so eastern sections remain reachable. Existing nine corridors and all retired segment aliases remain unchanged.
+
+## Station catchment demand and development indices
+
+`station-demand.ts` replaces the uniform intermediate-station 1,000/day balance with configurable local, district, regional and urban catchments, plus station-specific overrides. Factors are **game estimates**, not census population, observed passenger numbers, official station classes or measured city development scores. Malang receives greater education/tourism weight; Jember education and regional interchange; Probolinggo tourism; Banyuwangi tourism; Ketapang tourism and ferry interchange; Kertosono, Bangil and Kalisat rail interchange. Existing seven hub demand profiles retain their old calibrated volume and purpose shares.
+
+For each estimated catchment, the daily potential is:
+
+`round(P × (0.75 + 0.25U) × (0.8 + 0.2E + 0.1S) × (1 + 0.25T + 0.2I) × R × C × H)`
+
+- `P`: estimated daily travel potential of the catchment, **not population**. A future census input needs conversion to trip propensity and station access first.
+- `U`, `E`, `S`, `T`, `I`: development, employment, education, tourism and interchange scores, bounded 0–1.
+- `R`: rail preference/competition (0.25–1.5); `C`: station capture (0–1), discounting potential shared with other stations and modes.
+- `H`: optional IPM/HDI factor. Missing data is 1. Sourced IPM uses `clamp(1 + (IPM − 70)/300, 0.9, 1.1)` and requires a 0–100 value, year, administrative area and HTTPS source URL. No official IPM values have been loaded or guessed.
+
+IPM measures health, education and living standards; it is a modest modifier and does not directly imply passenger volumes or luxury purchasing power. A later BPS calibration should align census population, IPM, employment and incomes by compatible catchment/administrative area and year, then fit trip propensity/capture against actual boardings. Tourism and ferry interchange need their own statistics. Spatial catchment overlap and shared city-level population pools are not yet modelled; `C` is an explicit approximate discount.
+
+Work, education, development and tourism also generate normalized commuter/business/tourist shares. The booking engine averages the two endpoints' purpose-weighted time factors: commuting peaks at 06:00–10:00 and 16:00–20:00, tourism is stronger at 10:00–16:00, and overnight demand is lower. Existing route market share, fare elasticity, reputation, campaigns, used-demand buckets and per-section seat limits still apply after this potential. Class shares remain the game's existing EC/EX/LX distribution; IPM is not used as an income proxy. Stored bookings on active runs are retained; new forecasts/departures use the revised profiles.
+
+The relation picker's expandable station details show estimated daily potential, each factor and the missing-IPM neutral state. Potential is labelled before operator share/pricing/time/capacity and is never presented as guaranteed ticket sales. Tests cover valid purpose shares, factor effects, neutral/bounded IPM with provenance validation, purpose-specific peaks, all six eastern destinations, station order, access denial, reversible forecasts and saved relations.

@@ -18,6 +18,7 @@ import {
 import {
   CORE_SELECTABLE_STATIONS as stations,
   CORE_ROUTING_TRACKS as tracks,
+  EAST_JAVA_CORRIDORS,
   CORE_NETWORK_SOURCE,
   operatingTrackAccessible,
   depotContractPrice,
@@ -421,15 +422,21 @@ export default function CoreGame() {
               <p className="muted">
                 {CORE_NETWORK_SOURCE.importedAt
                   ? `Geometri jalur dari OpenStreetMap. ${CORE_NETWORK_SOURCE.importedStationCount} stasiun terimpor; kelas, peron dan batas operasi masih perlu verifikasi.`
-                  : `Tersedia ${CORE_NETWORK_SOURCE.intermediateStationCount} stasiun antara dengan posisi OSM pada sembilan koridor Jawa. Kelas stasiun belum terverifikasi; garis penghubung dan jarak antarstasiun masih skema game. Dataset nasional belum lengkap.`}
+                  : `Tersedia ${CORE_NETWORK_SOURCE.intermediateStationCount} stasiun antara dengan posisi OSM pada ${CORE_NETWORK_SOURCE.gameCorridorCount} koridor Jawa. Kelas stasiun belum terverifikasi; garis penghubung dan jarak antarstasiun masih skema game. Dataset nasional belum lengkap.`}
               </p>
+              <h3>Ekspansi Jawa Timur</h3>
+              <p className="muted">Buka akses koridor penuh setelah menyelesaikan satu PP. Koridor baru harus tersambung dengan jaringan Anda. Jarak, batas kecepatan dan okupansi jalur tunggal adalah aturan sementara game.</p>
+              {EAST_JAVA_CORRIDORS.map((corridor) => <div className="list-row" key={corridor.id}>
+                <div><b>{corridor.name}</b><small>~{corridor.distanceKm} km · batas game {corridor.maxSpeedKmh} km/jam</small></div>
+                {state.access.includes(corridor.id) ? <span className="pill good">Terbuka</span> : <button onClick={() => act({ type: "access", segmentId: corridor.id }, "Akses koridor Jawa Timur dibuka.")}>Buka · Rp25 jt</button>}
+              </div>)}
+              <h3>Bagian lintas</h3>
               {tracks
                 .filter(
                   (e) =>
                     operatingTrackAccessible(e, state.access) ||
                     stations.some((st) => st.id === e.originStationId),
                 )
-                .slice(0, 100)
                 .map((e) => (
                   <div className="list-row" key={e.id}>
                     <div>
@@ -466,7 +473,6 @@ export default function CoreGame() {
                     st.connected &&
                     !state.depots.some((d) => d.station === st.id),
                 )
-                .slice(0, 100)
                 .map((st) => (
                   <div className="list-row" key={st.id}>
                     <span>{stationName(st.id)}</span>

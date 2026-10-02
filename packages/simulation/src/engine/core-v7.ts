@@ -8,6 +8,7 @@ import {
 import { WorkloadCalculator } from "@railway/workforce";
 import {
   CORE_BALANCE as B,
+  stationPurposeTimeFactor,
   CORE_PRODUCTS,
   CORE_DEPOT_CITIES,
   CORE_ONBOARDING_MISSIONS,
@@ -481,9 +482,8 @@ function book(s: CoreState, r: CoreService, run: CoreRun, commit: boolean) {
               0,
             );
         const key = `${stopIds[a]}:${stopIds[b]}:${cls}:${Math.floor(departure / 120)}`;
-        const hour = (departure % 1440) / 60;
-        const time =
-          (hour >= 6 && hour < 10) || (hour >= 16 && hour < 20) ? 1.25 : 0.75;
+        const time = (stationPurposeTimeFactor(origin.demandProfile, departure)
+          + stationPurposeTimeFactor(dest.demandProfile, departure)) / 2;
         const lift = Math.max(
           0,
           ...s.campaigns
