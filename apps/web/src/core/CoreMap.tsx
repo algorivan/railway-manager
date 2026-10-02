@@ -26,6 +26,8 @@ export function CoreMap({ state }: { state: CoreState }) {
   const selected = state.services.find((s) => s.id === serviceId);
   const accessKey = state.access.join("|");
   const routeKey = JSON.stringify(selected ?? null);
+  const selectedStopsRef = useRef(new Set<string>());
+  selectedStopsRef.current = new Set(selected?.stops ?? selected?.stations ?? []);
   const hubRef = useRef(state.hub);
   hubRef.current = state.hub;
   useEffect(() => {
@@ -53,6 +55,7 @@ export function CoreMap({ state }: { state: CoreState }) {
         if (
           m.getZoom() >= 10 ||
           id === hubRef.current ||
+          selectedStopsRef.current.has(id) ||
           JAVA_STATION_CATALOG.some((s) => s.id === id)
         )
           marker.openTooltip();
@@ -128,6 +131,7 @@ export function CoreMap({ state }: { state: CoreState }) {
       if (
         (map.current?.getZoom() ?? 0) < 10 &&
         station.id !== state.hub &&
+        !stop &&
         !JAVA_STATION_CATALOG.some((s) => s.id === station.id)
       )
         marker.closeTooltip();
@@ -202,7 +206,7 @@ export function CoreMap({ state }: { state: CoreState }) {
         <small>
           {CORE_NETWORK_SOURCE.importedAt
             ? "Geometri OSM · batas operasi belum terverifikasi"
-            : "Skema sementara · data jalur OSM belum terimpor"}
+            : `Posisi stasiun OSM · ${CORE_NETWORK_SOURCE.intermediateStationCount} stasiun antara · jalur skematis`}
         </small>
         {tilesFailed && (
           <small className="warning-text">

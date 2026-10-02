@@ -56,6 +56,7 @@ export declare const CORE_NETWORK_SOURCE: {
     importedStationCount: number;
     connectedStationCount: number;
     source: string;
+    intermediateStationCount: number;
 };
 export declare function operatingTrackAccessible(track: OperatingTrack, access: readonly string[]): boolean;
 export declare function operatingTrackGeometry(id: string, from?: string): RailPoint[];

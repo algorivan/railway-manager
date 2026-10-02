@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CORE_OPERATING_STATIONS,
   CORE_OPERATING_TRACKS,
+  CORE_ROUTING_TRACKS,
   operatingTrackAccessible,
   operatingTrackGeometry,
   pointAlongRail,
@@ -9,6 +10,26 @@ import {
 } from "../src/catalog/operating-network.js";
 
 describe("operating map geometry", () => {
+  it("connects every game corridor through selectable intermediate OSM points", () => {
+    for (const parent of CORE_OPERATING_TRACKS.filter((track) => /^SEG_[A-Z]+_[A-Z]+$/.test(track.id))) {
+      const children = CORE_ROUTING_TRACKS.filter((track) => track.accessKeys.includes(parent.id));
+      expect(children.length).toBeGreaterThan(1);
+      expect(children.reduce((sum, track) => sum + track.distanceKm, 0)).toBeCloseTo(parent.distanceKm);
+      expect(children[0]!.originStationId).toBe(parent.originStationId);
+      expect(children.at(-1)!.destinationStationId).toBe(parent.destinationStationId);
+      for (let i = 0; i < children.length; i++) {
+        const child = children[i]!;
+        expect(child.schematic).toBe(true);
+        expect(child.provenance.verified).toBe(false);
+        expect(child.distanceKm).toBeGreaterThan(0);
+        if (i) expect(child.originStationId).toBe(children[i - 1]!.destinationStationId);
+        expect(CORE_OPERATING_STATIONS.find((station) => station.id === child.destinationStationId)?.connected).toBe(true);
+        expect(operatingTrackAccessible(child, [parent.id])).toBe(true);
+      }
+    }
+    expect(new Set(CORE_OPERATING_STATIONS.map((station) => station.id)).size).toBe(CORE_OPERATING_STATIONS.length);
+    expect(new Set(CORE_OPERATING_STATIONS.map((station) => station.code)).size).toBe(CORE_OPERATING_STATIONS.length);
+  });
   it("follows bends by accumulated distance instead of cutting between endpoints", () => {
     const shape: [number, number][] = [
       [0, 0],

@@ -88,6 +88,12 @@ class ImportTests(unittest.TestCase):
         self.assertIn("STN_OSMW1", ids)
         self.assertEqual(len(ids), len(set(ids)))
 
+    def test_prefers_railway_station_code_to_generic_ref(self):
+        data = fixture()
+        data["elements"][0]["tags"].update({"railway:ref": "SM", "ref": "unrelated-reference"})
+        result = module.compile_network(data)
+        self.assertEqual("SM", next(s for s in result["stations"] if s["id"] == "STN_OSMN1")["code"])
+
     def test_skeleton_nodes_do_not_erase_station_names(self):
         data = fixture()
         data["elements"].append({"type": "node", "id": 1, "lat": -7, "lon": 110})

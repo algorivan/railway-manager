@@ -169,7 +169,7 @@ def compile_network(data, legacy_stations=(), legacy_tracks=()):
         name = tags.get("name:id") or tags["name"]
         if any(name.casefold() == s["name"].casefold() and distance(point, s["point"]) < 0.35 for s in candidates):
             continue
-        candidates.append({"id": f"STN_OSM{kind[0].upper()}{id}", "code": tags.get("ref") or f"O{id}", "name": name,
+        candidates.append({"id": f"STN_OSM{kind[0].upper()}{id}", "code": tags.get("railway:ref") or tags.get("ref") or f"O{id}", "name": name,
                            "osmId": f"{kind}/{id}", "kind": "station", "connected": anchor is not None,
                            "point": point, "anchor": anchor, **({"city": tags["addr:city"]} if tags.get("addr:city") else {}), **({"province": tags["addr:state"]} if tags.get("addr:state") else {}),
                            **({"stationClass": tags["railway:station_category"]} if tags.get("railway:station_category") else {})})

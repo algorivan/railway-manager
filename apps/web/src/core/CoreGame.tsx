@@ -429,7 +429,7 @@ export default function CoreGame() {
               <p className="muted">
                 {CORE_NETWORK_SOURCE.importedAt
                   ? `Geometri jalur dari OpenStreetMap. ${CORE_NETWORK_SOURCE.importedStationCount} stasiun terimpor; kelas, peron dan batas operasi masih perlu verifikasi.`
-                  : "Data jalur/stasiun nasional OSM belum tersedia. Tujuh stasiun dan sembilan koridor lama tetap tersedia sebagai skema, bukan bentuk rel nyata."}
+                  : `Tersedia ${CORE_NETWORK_SOURCE.intermediateStationCount} stasiun antara dengan posisi OSM pada sembilan koridor Jawa. Kelas stasiun belum terverifikasi; garis penghubung dan jarak antarstasiun masih skema game. Dataset nasional belum lengkap.`}
               </p>
               {tracks
                 .filter(

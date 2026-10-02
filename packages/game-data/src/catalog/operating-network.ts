@@ -3,6 +3,7 @@ import type { TrackCorridorSegment } from "../schemas/track.schema.js";
 import { JAVA_STATION_CATALOG } from "./stations.js";
 import { JAVA_TRACK_CORRIDOR_SEGMENTS } from "./tracks.js";
 import { CORE_STATION_PROVINCE } from "./gameplay-v7.js";
+import { INTERMEDIATE_STATIONS, SCHEMATIC_CORRIDOR_STOPS } from "./intermediate-stations.js";
 import { OSM_NETWORK_DATA } from "./osm-network-data.js";
 
 export type RailPoint = [number, number]; // Latitude, longitude (Leaflet order).
@@ -49,6 +50,17 @@ export interface OperatingTrack extends TrackCorridorSegment {
   schematic: boolean;
   gradientPermille?: number;
 }
+const activeIntermediateIds = new Set(Object.entries(SCHEMATIC_CORRIDOR_STOPS)
+  .filter(([corridor]) => !OSM_NETWORK_DATA.legacyRoutes[corridor])
+  .flatMap(([, stops]) => [...stops]));
+const curatedStations: OperatingStation[] = INTERMEDIATE_STATIONS.map((station) => ({
+  ...station, kind: "station", connected: activeIntermediateIds.has(station.id), region: "JAVA_INTERMEDIATE",
+  platformCount: 1, maxTrainLengthMeters: 180,
+  facilities: { hasCargoTerminal: false, hasDepotConnection: false, hasExecutiveLounge: false },
+  demandProfile: { baseDailyDemand: 1000, commuterShare: 0.5, businessShare: 0.25, touristShare: 0.25 },
+  provenance: { source: `OpenStreetMap ${station.osmId} (ODbL 1.0)`, sourceDate: "2026-10-02", verified: false,
+    notes: "Actual OSM station position/code. Corridor membership/province curated for game; class, platform and demand unverified/provisional. Rail connections remain schematic." },
+}));
 const originalStations = new Map(JAVA_STATION_CATALOG.map((s) => [s.id, s]));
 const importedStations: OperatingStation[] = OSM_NETWORK_DATA.stations.map(
   (s) => {
@@ -91,17 +103,46 @@ export const CORE_OPERATING_STATIONS: readonly OperatingStation[] = [
     connected: true,
     province: CORE_STATION_PROVINCE[s.id],
   })),
+  ...curatedStations.filter((station) => !importedIds.has(station.id)),
   ...importedStations,
 ];
 export const CORE_SELECTABLE_STATIONS = CORE_OPERATING_STATIONS.filter(
   (s) => s.kind === "station",
 );
+/** Split game corridors at actual station points; never claim the chords are rail geometry. */
+const schematicTracks: OperatingTrack[] = [];
+const schematicRoutes: Record<string, string[]> = {};
+for (const parent of JAVA_TRACK_CORRIDOR_SEGMENTS) {
+  if (OSM_NETWORK_DATA.legacyRoutes[parent.id]) continue;
+  const stops = SCHEMATIC_CORRIDOR_STOPS[parent.id];
+  if (!stops?.length) continue;
+  const ids = [parent.originStationId, ...stops, parent.destinationStationId];
+  const weights = ids.slice(1).map((to, index) => {
+    const a = CORE_OPERATING_STATIONS.find((station) => station.id === ids[index])!.coordinates;
+    const b = CORE_OPERATING_STATIONS.find((station) => station.id === to)!.coordinates;
+    return railDistance([a.lat, a.lng], [b.lat, b.lng]);
+  });
+  const total = weights.reduce((sum, km) => sum + km, 0);
+  schematicRoutes[parent.id] = [];
+  ids.slice(1).forEach((to, index) => {
+    const id = `${parent.id}:stop:${index}`;
+    schematicRoutes[parent.id]!.push(id);
+    schematicTracks.push({ ...parent, id, name: `${CORE_OPERATING_STATIONS.find((station) => station.id === ids[index])!.code} – ${CORE_OPERATING_STATIONS.find((station) => station.id === to)!.code}`,
+      originStationId: ids[index]!, destinationStationId: to,
+      distanceKm: parent.distanceKm * weights[index]! / total,
+      accessKeys: [parent.id], schematic: true,
+      provenance: { source: "Game corridor interpolation using OSM station positions", sourceDate: "2026-10-02", verified: false,
+        notes: "Schematic connection; distances are game estimates scaled to the parent corridor, not surveyed rail distances. Speed inherits the provisional game corridor limit." },
+    });
+  });
+}
 export const CORE_OPERATING_TRACKS: readonly OperatingTrack[] = [
   ...JAVA_TRACK_CORRIDOR_SEGMENTS.map((s) => ({
     ...s,
     accessKeys: [s.id],
     schematic: !OSM_NETWORK_DATA.legacyRoutes[s.id],
   })),
+  ...schematicTracks,
   ...OSM_NETWORK_DATA.segments.map((s) => ({
     id: s.id,
     name: `Lintas OSM ${s.from} – ${s.to}`,
@@ -127,7 +168,7 @@ export const CORE_OPERATING_TRACKS: readonly OperatingTrack[] = [
   })),
 ];
 export const CORE_ROUTING_TRACKS = CORE_OPERATING_TRACKS.filter(
-  (t) => !OSM_NETWORK_DATA.legacyRoutes[t.id],
+  (t) => !OSM_NETWORK_DATA.legacyRoutes[t.id] && !schematicRoutes[t.id],
 );
 export const CORE_NETWORK_SOURCE = {
   importedAt: OSM_NETWORK_DATA.importedAt,
@@ -136,6 +177,7 @@ export const CORE_NETWORK_SOURCE = {
   connectedStationCount: CORE_SELECTABLE_STATIONS.filter((s) => s.connected)
     .length,
   source: OSM_NETWORK_DATA.source,
+  intermediateStationCount: curatedStations.length,
 };
 export function operatingTrackAccessible(
   track: OperatingTrack,
@@ -150,7 +192,7 @@ export function operatingTrackGeometry(id: string, from?: string): RailPoint[] {
   const track = CORE_OPERATING_TRACKS.find((t) => t.id === id);
   if (!track) return [];
   let points = track.geometry;
-  const children = OSM_NETWORK_DATA.legacyRoutes[id];
+  const children = OSM_NETWORK_DATA.legacyRoutes[id] ?? schematicRoutes[id];
   if (!points && children) {
     let origin = track.originStationId;
     points = children.flatMap((child, i) => {

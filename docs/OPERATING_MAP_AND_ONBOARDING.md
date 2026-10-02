@@ -4,7 +4,7 @@ The supplied pasted HTML contains a rendered Leaflet map, tiles and SVG paths. I
 
 ## Data pipeline
 
-`packages/game-data/src/catalog/operating-network.ts` combines the unchanged legacy catalog with an OSM snapshot. The original seven station IDs and nine corridor IDs remain available for saved services and active runs. New routing uses imported physical edges when a legacy corridor has a connected OSM path. Existing corridor rights extend to that corridor's detailed edges; occupancy remains conservative for overlapping legacy/detail services. Branches and line ends are topology nodes, not selectable passenger stations. Starter rights continue through junctions to adjacent passenger stations to avoid trapping a new hub before expansion is available.
+`packages/game-data/src/catalog/operating-network.ts` combines the unchanged legacy catalog with an OSM snapshot. The original seven station IDs and nine corridor IDs remain available for saved services and active runs. New routing uses imported physical edges when a legacy corridor has a connected OSM path; otherwise it uses the curated intermediate-station schematic edges described below. Existing corridor rights extend to that corridor's detailed edges; occupancy remains conservative for overlapping legacy/detail services. Branches and line ends are topology nodes, not selectable passenger stations. Starter rights continue through junctions to adjacent passenger stations to avoid trapping a new hub before expansion is available.
 
 `python3 scripts/import-osm-network.py /tmp/indonesia-rail.json --download` queries Indonesia's OSM area in seven regional requests for railway lines and named station/halt nodes/ways. Gateway timeouts split a region into smaller requests (up to two subdivision levels). Each successful part is cached next to the raw input path in a `.parts` directory. The combined raw cache is replaced only when every region succeeds; denied access is never retried. Run it after building game-data. It writes the generated TypeScript catalog only after the response has parsed and validated; raw JSON remains outside Git. It is an explicit maintenance step, never a live browser or Vercel-build dependency. Offline use accepts a previously downloaded Overpass JSON file without `--download`.
 
@@ -19,7 +19,7 @@ The importer:
 
 OpenStreetMap is a community geographic source, not official Gapeka or KAI station-class data. Relation-only stations without usable geometry, stations not tagged in OSM, incompatible networks and unresolved topology require further curation. New platform length (180 m), catchment demand (1,000/day), speed fallback and conservative occupancy are provisional game rules. Station class is not invented from marker size or platform counts. Full national coverage cannot be claimed from the importer or a small fixture test alone.
 
-**Current data status:** the national snapshot is not imported. `osm-network-data.ts` remains explicitly empty and maps label the seven-station fallback as schematic. After the user changed access, `overpass-api.de/api/interpreter` returned real station data and a small GET geometry query near Bandung (1,209 elements). The importer processed that real sample outside the repository into five connected stations and 51 segments, with zero mapped legacy corridors. National and regional queries, including subdivisions and area lookup diagnostics, returned HTTP 504; the server status page returned HTTP 406. Runtime policy metadata still reports revision 5, so actual endpoint responses are the useful access evidence. Regional cache/import is ready to resume when the upstream queries complete. The Bandung sample is verification only and is not shipped as nationwide data.
+**Current data status:** the national snapshot is not imported. `osm-network-data.ts` remains explicitly empty and maps label the intermediate-station network as schematic. After the user changed access, `overpass-api.de/api/interpreter` returned real station data and a small GET geometry query near Bandung (1,209 elements). The importer processed that real sample outside the repository into five connected stations and 51 segments, with zero mapped legacy corridors. National and regional queries, including subdivisions and area lookup diagnostics, returned HTTP 504; the server status page returned HTTP 406. Runtime policy metadata still reports revision 5, so actual endpoint responses are the useful access evidence. Regional cache/import is ready to resume when the upstream queries complete. The Bandung railway-geometry sample remains verification only and is not shipped as nationwide data. Later successful station-only queries supplied the curated intermediate-station catalog described below.
 
 OSM-derived data is attributed to OpenStreetMap contributors under ODbL 1.0. Keep this attribution with redistributed snapshots and comply with ODbL requirements. See <https://www.openstreetmap.org/copyright>.
 
@@ -59,3 +59,25 @@ The multi-relation editor shows one time lane per duty with journey blocks and h
 `previewCoreDiagram` is shared by live timetable feedback and schedule activation. It checks overlaps, turnaround, station continuity, contracted service facilities and the next-cycle join without mutating the company. Time overlaps turn blocks red; location and facility problems show explicit messages and prevent saving. Route occupancy is still checked at actual dispatch; a green pattern is not a guarantee of a free railway block. Saved duties retain trainset identity, direction and departure time across reload/offline catch-up.
 
 Browser checks exercised keyboard and pointer movement, exact time changes, visible hour limits, conflicts, mobile overflow, preview non-mutation and saved-pattern reload. Import checks also cover interrupted downloads preserving the prior cache and subdivision after a gateway timeout.
+
+## Intermediate stations on the Java game map
+
+`intermediate-stations.ts` contains 65 unique real OSM station node positions and codes retrieved on 2026-10-02. Regional station queries for Priangan, northern Central Java and northern East Java succeeded; smaller exact-name queries supplied western Java, Yogyakarta/Surakarta and selected southern East Java stations. Failed/limited queries were not filled with invented coordinates. Each station retains its OSM node ID, date and ODbL attribution; `railway:ref` takes precedence over generic `ref`. The importer also recognizes this code tag. Official medium/small station classes have not been verified; these are presented as intermediate stations with unknown class.
+
+| Parent game corridor | Intermediate stops |
+| --- | ---: |
+| Gambir–Bandung | 5 |
+| Gambir–Cirebon | 4 |
+| Cirebon–Semarang | 9 |
+| Semarang–Surabaya | 10 |
+| Cirebon–Yogyakarta | 8 |
+| Bandung–Yogyakarta | 20 |
+| Yogyakarta–Solo | 6 |
+| Solo–Surabaya | 6 |
+| Semarang–Solo | 6 |
+
+Shared stations appear in multiple corridors but have one selectable identity. All 72 stations (seven original hubs plus 65 intermediate points) are available to the relation picker. New paths traverse the intermediate stations; each can be an origin, destination, commercial stop or pass-through. Commercial stops use three game minutes of dwell and the shared acceleration/braking model. Class, platform and demand remain unverified; new platform capacity (180 m) and demand (1,000/day) are conservative provisional game rules. Province and corridor order are curated configuration, not additional OSM metadata. Brambanan is assigned to Central Java, while Maguwo, Lempuyangan and Wates are in DI Yogyakarta.
+
+Each fallback corridor is split into schematic edges using station coordinates. Section distances allocate the original game corridor distance in proportion to the chords; they are game estimates, not measured railway kilometres. Shared corridors can have different distance estimates; routing selects the shortest accessible game path. Child edges inherit access and conservative occupancy from their parent corridor. Real imported corridor paths take precedence when available. The map and station provenance explicitly identify the schematic links. This does not establish surveyed railway alignment, physical block layout or complete Indonesian coverage.
+
+Legacy corridor IDs remain in the catalog and existing saved services/runs keep their original station lists and timing; new services use the expanded routing. Tests cover every corridor's connectivity/access and positive distances, station/code uniqueness, selectable small-station endpoints, commercial-stop dwell versus passing, location/turnaround validation and old saved trains finishing their existing run.
