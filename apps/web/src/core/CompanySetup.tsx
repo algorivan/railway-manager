@@ -23,7 +23,7 @@ export function CompanySetup({
   return (
     <section className="company-setup" aria-labelledby="company-setup-title">
       <div className="company-setup-card">
-        <small>SELAMAT DATANG, OPERATOR BARU</small>
+        <small>MISI 1 DARI 9 · DIRIKAN DEPO & PILIH HUB</small>
         <h1 id="company-setup-title">Mulai dari depo Anda.</h1>
         <p>
           Depo menyimpan sarana, menyediakan fuel dan fasilitas maintenance.

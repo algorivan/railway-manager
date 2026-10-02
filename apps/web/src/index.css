@@ -60,3 +60,5 @@ body {
   background: transparent !important;
   border: none !important;
 }
+
+.app-loading { display: grid; place-items: center; min-height: 100dvh; color: #17354a; background: #f6f8f6; font-family: system-ui, sans-serif; }

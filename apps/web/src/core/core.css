@@ -1531,3 +1531,28 @@
 .timetable-duty .field-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .timetable-duty .field-pair label { min-width: 0; }
 .timetable-legend .warning-text { color: #dc2626; }
+
+/* One mission onboarding; navigation stays in the floating right dock. */
+.core-game .mission-guide { display: grid; gap: 10px; }
+.mission-guide.current { border-color: #e86b2c; background: #fff9ef; }
+.mission-guide.done { background: #f2fbf6; }
+.core-game .mission-guide p { margin: 0; }
+.core-game .game-dock { right: 14px; bottom: 56px; width: 66px; max-height: calc(100dvh - 175px); overflow-y: auto; display: flex; flex-direction: column; gap: 3px; padding: 7px; }
+.core-game .game-dock button { flex-shrink: 0; width: 100%; min-height: 50px; padding: 5px 2px; font-size: 9px; display: flex; flex-direction: column; gap: 3px; }
+.core-game .game-dock button.active { background: #fff0e5; color: #bd511f; }
+.panel-loading, .map-boot-loading, .import-loading, .app-loading { display: flex; align-items: center; justify-content: center; gap: 12px; color: #17354a; background: #f6f8f6; padding: 24px; }
+.panel-loading { flex: 1; }
+.map-boot-loading, .app-loading { min-height: 100dvh; }
+.import-loading { position: fixed; z-index: 1200; inset: 0; background: #f6f8f6ee; }
+.save-access-loading { position: fixed; z-index: 700; top: 88px; left: 16px; right: 100px; background: #fff4dc; padding: 10px; border-radius: 8px; }
+.loading-spinner { width: 20px; height: 20px; border: 3px solid #d7e1e5; border-top-color: #e86b2c; border-radius: 50%; animation: loading-spin .8s linear infinite; }
+@keyframes loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loading-spinner { animation: none; } }
+@media (max-width: 700px) {
+  .core-game .game-dock { right: 6px; bottom: 44px; width: 58px; padding: 5px; max-height: calc(100dvh - 150px); }
+  .core-game .game-dock button { min-height: 46px; font-size: 8px; }
+  .operations-panel { width: calc(100% - 74px); }
+}
+.core-game .game-dock button { height: 50px; }
+.map-tools { right: 96px; }
+@media (max-width: 700px) { .core-game .game-dock button { height: 46px; } .map-tools { right: 72px; } }

@@ -23,6 +23,7 @@ export function CoreMap({ state }: { state: CoreState }) {
   const stationMarkers = useRef<{ id: string; marker: L.CircleMarker }[]>([]);
   const [serviceId, setServiceId] = useState("");
   const [tilesFailed, setTilesFailed] = useState(false);
+  const [tilesLoading, setTilesLoading] = useState(true);
   const selected = state.services.find((s) => s.id === serviceId);
   const accessKey = state.access.join("|");
   const routeKey = JSON.stringify(selected ?? null);
@@ -47,7 +48,9 @@ export function CoreMap({ state }: { state: CoreState }) {
         maxZoom: 18,
       },
     ).addTo(m);
-    tiles.on("tileerror", () => setTilesFailed(true));
+    tiles.on("loading", () => setTilesLoading(true));
+    tiles.on("load", () => setTilesLoading(false));
+    tiles.on("tileerror", () => { setTilesFailed(true); setTilesLoading(false); });
     railLayer.current = L.layerGroup().addTo(m);
     trainLayer.current = L.layerGroup().addTo(m);
     const labels = () => {
@@ -208,6 +211,7 @@ export function CoreMap({ state }: { state: CoreState }) {
             ? "Geometri OSM · batas operasi belum terverifikasi"
             : `Posisi stasiun OSM · ${CORE_NETWORK_SOURCE.intermediateStationCount} stasiun antara · jalur skematis`}
         </small>
+        {tilesLoading && !tilesFailed && <small role="status">Memuat peta dasar…</small>}
         {tilesFailed && (
           <small className="warning-text">
             Peta dasar gagal dimuat. Jalur dan operasi tetap tersedia.

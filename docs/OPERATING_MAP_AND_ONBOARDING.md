@@ -31,9 +31,11 @@ The same profile sets forecast/event duration, reported speed and distance fract
 
 ## Player flow
 
-The sidebar sits flush with the left edge and contains navigation. Collapse leaves an edge arrow; opening restores the current panel. A navigation history button and a persistent “Kembali ke tutorial” button support guided excursions. The bottom-right shortcut is Depo. Armada contains separate Trainset/dinas and Inventori/depo views; inventory is not repeated on unrelated screens. The depot view shows stock, fuel storage capacity, unit condition, odometer, P1 due times and active maintenance jobs. Vehicle parking capacity is not modelled or misrepresented as fuel capacity.
+The operations panel sits flush with the left edge. Peta, Jadwal, Armada, Pasar, Kantor and Tutorial are floating icons in a vertical bottom-right dock, alongside Depo and sound; the dock stays available when the panel is collapsed. Collapse leaves an edge arrow; opening restores the current panel. A navigation history button and a persistent “Kembali ke tutorial” button support guided excursions. Depo opens Armada’s inventory/depot view. Armada contains separate Trainset/dinas and Inventori/depo views; inventory is not repeated on unrelated screens. The depot view shows stock, fuel storage capacity, unit condition, odometer, P1 due times and active maintenance jobs. Vehicle parking capacity is not modelled or misrepresented as fuel capacity.
 
 New browser games must choose a depot city, see its provisional contract cost, select a compatible first hub and confirm company creation before procurement. The first depot is represented at that hub station. Initial city prices are Rp10–20 million; OSM city tags can expand the available choices after import. Areas lacking city tags are explicitly labelled as station areas. Legacy saves keep their existing depot/hub and can opt into missions without restarting.
+
+The nine missions are the onboarding itself: each includes instructions and a link to the relevant menu, with a return-to-tutorial button in the operations panel. There is no second tutorial checklist. Company setup is mission 1. Startup, lazy-loaded menus/map, basemap tiles, checkpoint imports and save-lock acquisition expose loading/status feedback; synchronous actions retain immediate success/failure notifications.
 
 Nine one-time missions award 460 XP and Rp590 million in total, including Rp100 million/40 XP for company creation and Rp150 million/100 XP for the first completed passenger service. Level advances every 100 XP. Cash is posted as a mission gift with zero passenger revenue, preserving contribution accounting. Rewards are automatic for eligible milestones in opted-in saves; claims, ledger IDs and XP survive reload and catch-up. No XP is awarded for opening menus. Level does not override route, fuel or safety requirements.
 
@@ -62,22 +64,26 @@ Browser checks exercised keyboard and pointer movement, exact time changes, visi
 
 ## Intermediate stations on the Java game map
 
-`intermediate-stations.ts` contains 65 unique real OSM station node positions and codes retrieved on 2026-10-02. Regional station queries for Priangan, northern Central Java and northern East Java succeeded; smaller exact-name queries supplied western Java, Yogyakarta/Surakarta and selected southern East Java stations. Failed/limited queries were not filled with invented coordinates. Each station retains its OSM node ID, date and ODbL attribution; `railway:ref` takes precedence over generic `ref`. The importer also recognizes this code tag. Official medium/small station classes have not been verified; these are presented as intermediate stations with unknown class.
+`intermediate-stations.ts` contains 115 unique real OSM station node positions and codes retrieved on 2026-10-02. Regional station queries for Priangan, northern Central Java and northern East Java succeeded; smaller exact-name queries supplied western Java, Yogyakarta/Surakarta and selected southern East Java stations. Failed/limited queries were not filled with invented coordinates. Each station retains its OSM node ID, date and ODbL attribution; `railway:ref` takes precedence over generic `ref`. The importer also recognizes this code tag. Official medium/small station classes have not been verified; these are presented as intermediate stations with unknown class.
+
+The user-supplied `rail-map-of-java.pdf` identifies itself as the FDTJ Java railway map dated 2022-05-06. Its blue existing-railway lines were reviewed for station order and missing stops; inactive, planned and high-speed branches were excluded. It is a historical reference, not evidence of current 2026 operations or station classes. Fifty additional stations have matching OSM node coordinates/codes. The review corrects Gundih → Sumberlawang → Salem and adds the northern Surabaya approach through Benowo, Kandangan, Tandes, Pasarturi and Kota to Gubeng. It also fills western, Priangan, northern/southern Central Java and eastern corridor gaps, including Cimahi, Kiaracondong, Cicalengka, Nagreg, Nganjuk, Kertosono and Mojokerto. PDF artwork is not redistributed.
 
 | Parent game corridor | Intermediate stops |
 | --- | ---: |
-| Gambir–Bandung | 5 |
-| Gambir–Cirebon | 4 |
-| Cirebon–Semarang | 9 |
-| Semarang–Surabaya | 10 |
-| Cirebon–Yogyakarta | 8 |
-| Bandung–Yogyakarta | 20 |
+| Gambir–Bandung | 6 |
+| Gambir–Cirebon | 5 |
+| Cirebon–Semarang | 18 |
+| Semarang–Surabaya | 30 |
+| Cirebon–Yogyakarta | 16 |
+| Bandung–Yogyakarta | 27 |
 | Yogyakarta–Solo | 6 |
-| Solo–Surabaya | 6 |
-| Semarang–Solo | 6 |
+| Solo–Surabaya | 10 |
+| Semarang–Solo | 7 |
 
-Shared stations appear in multiple corridors but have one selectable identity. All 72 stations (seven original hubs plus 65 intermediate points) are available to the relation picker. New paths traverse the intermediate stations; each can be an origin, destination, commercial stop or pass-through. Commercial stops use three game minutes of dwell and the shared acceleration/braking model. Class, platform and demand remain unverified; new platform capacity (180 m) and demand (1,000/day) are conservative provisional game rules. Province and corridor order are curated configuration, not additional OSM metadata. Brambanan is assigned to Central Java, while Maguwo, Lempuyangan and Wates are in DI Yogyakarta.
+Shared stations appear in multiple corridors but have one selectable identity. All 122 stations (seven original hubs plus 115 intermediate points) are available to the relation picker. New paths traverse the intermediate stations; each can be an origin, destination, commercial stop or pass-through. Commercial stops use three game minutes of dwell and the shared acceleration/braking model. Class, platform and demand remain unverified; new platform capacity (180 m) and demand (1,000/day) are conservative provisional game rules. Province and corridor order are curated configuration, not additional OSM metadata. Brambanan is assigned to Central Java, while Maguwo, Lempuyangan and Wates are in DI Yogyakarta.
 
 Each fallback corridor is split into schematic edges using station coordinates. Section distances allocate the original game corridor distance in proportion to the chords; they are game estimates, not measured railway kilometres. Shared corridors can have different distance estimates; routing selects the shortest accessible game path. Child edges inherit access and conservative occupancy from their parent corridor. Real imported corridor paths take precedence when available. The map and station provenance explicitly identify the schematic links. This does not establish surveyed railway alignment, physical block layout or complete Indonesian coverage.
+
+New schematic segment IDs use parent corridor plus endpoint IDs. `legacy-intermediate-segments.ts` preserves the 83 numbered segment definitions from the first intermediate-station release, including their original distances; these aliases are excluded from new routing and map rendering. Future expansions must preserve any retired segment definitions before splitting them, so saved services and active runs remain resolvable. A regression check restores a numbered Bandung–Gambir service and validates its original forecast.
 
 Legacy corridor IDs remain in the catalog and existing saved services/runs keep their original station lists and timing; new services use the expanded routing. Tests cover every corridor's connectivity/access and positive distances, station/code uniqueness, selectable small-station endpoints, commercial-stop dwell versus passing, location/turnaround validation and old saved trains finishing their existing run.

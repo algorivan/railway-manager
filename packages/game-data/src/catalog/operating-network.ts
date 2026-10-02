@@ -4,6 +4,7 @@ import { JAVA_STATION_CATALOG } from "./stations.js";
 import { JAVA_TRACK_CORRIDOR_SEGMENTS } from "./tracks.js";
 import { CORE_STATION_PROVINCE } from "./gameplay-v7.js";
 import { INTERMEDIATE_STATIONS, SCHEMATIC_CORRIDOR_STOPS } from "./intermediate-stations.js";
+import { LEGACY_INTERMEDIATE_SEGMENTS } from "./legacy-intermediate-segments.js";
 import { OSM_NETWORK_DATA } from "./osm-network-data.js";
 
 export type RailPoint = [number, number]; // Latitude, longitude (Leaflet order).
@@ -125,7 +126,7 @@ for (const parent of JAVA_TRACK_CORRIDOR_SEGMENTS) {
   const total = weights.reduce((sum, km) => sum + km, 0);
   schematicRoutes[parent.id] = [];
   ids.slice(1).forEach((to, index) => {
-    const id = `${parent.id}:stop:${index}`;
+    const id = `${parent.id}:stop:${ids[index]}:${to}`;
     schematicRoutes[parent.id]!.push(id);
     schematicTracks.push({ ...parent, id, name: `${CORE_OPERATING_STATIONS.find((station) => station.id === ids[index])!.code} – ${CORE_OPERATING_STATIONS.find((station) => station.id === to)!.code}`,
       originStationId: ids[index]!, destinationStationId: to,
@@ -136,12 +137,22 @@ for (const parent of JAVA_TRACK_CORRIDOR_SEGMENTS) {
     });
   });
 }
+const legacyIntermediateTracks: OperatingTrack[] = LEGACY_INTERMEDIATE_SEGMENTS.map((edge) => {
+  const parent = JAVA_TRACK_CORRIDOR_SEGMENTS.find((track) => track.id === edge.parentId)!;
+  return { ...parent, id: edge.id, originStationId: edge.from, destinationStationId: edge.to,
+    distanceKm: edge.distanceKm, accessKeys: [edge.parentId], schematic: true,
+    provenance: { source: "Preserved first intermediate-station game network", sourceDate: "2026-10-02", verified: false,
+      notes: "Compatibility edge for saved routes; preserves the original schematic endpoints and game distance. Not used by new routing." },
+  };
+});
+const legacyIntermediateIds = new Set(legacyIntermediateTracks.map((edge) => edge.id));
 export const CORE_OPERATING_TRACKS: readonly OperatingTrack[] = [
   ...JAVA_TRACK_CORRIDOR_SEGMENTS.map((s) => ({
     ...s,
     accessKeys: [s.id],
     schematic: !OSM_NETWORK_DATA.legacyRoutes[s.id],
   })),
+  ...legacyIntermediateTracks,
   ...schematicTracks,
   ...OSM_NETWORK_DATA.segments.map((s) => ({
     id: s.id,
@@ -168,7 +179,7 @@ export const CORE_OPERATING_TRACKS: readonly OperatingTrack[] = [
   })),
 ];
 export const CORE_ROUTING_TRACKS = CORE_OPERATING_TRACKS.filter(
-  (t) => !OSM_NETWORK_DATA.legacyRoutes[t.id] && !schematicRoutes[t.id],
+  (t) => !OSM_NETWORK_DATA.legacyRoutes[t.id] && !schematicRoutes[t.id] && !legacyIntermediateIds.has(t.id),
 );
 export const CORE_NETWORK_SOURCE = {
   importedAt: OSM_NETWORK_DATA.importedAt,

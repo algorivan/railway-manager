@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Map as MapIcon,
   CalendarDays,
@@ -34,11 +34,6 @@ import {
   stationName,
   type CoreState,
 } from "@railway/simulation";
-import { CoreMap } from "./CoreMap";
-import { Fleet } from "./Fleet";
-import { Schedules } from "./Schedules";
-import { Market } from "./Market";
-import { Office } from "./Office";
 import { Card, compact, clock, type Act, type Screen } from "./presentation";
 import {
   Feedback,
@@ -47,9 +42,15 @@ import {
   readPreference,
   writePreference,
 } from "./feedback";
-import { Tutorial, TUTORIAL_KEY } from "./Tutorial";
 import { CompanySetup } from "./CompanySetup";
 import "./core.css";
+const TUTORIAL_KEY = "railway-manager-tutorial-v1";
+const CoreMap = lazy(() => import("./CoreMap").then((module) => ({ default: module.CoreMap })));
+const Fleet = lazy(() => import("./Fleet").then((module) => ({ default: module.Fleet })));
+const Schedules = lazy(() => import("./Schedules").then((module) => ({ default: module.Schedules })));
+const Market = lazy(() => import("./Market").then((module) => ({ default: module.Market })));
+const Office = lazy(() => import("./Office").then((module) => ({ default: module.Office })));
+const Tutorial = lazy(() => import("./Tutorial").then((module) => ({ default: module.Tutorial })));
 const SAVE = "railway-manager-v7";
 
 export default function CoreGame() {
@@ -72,6 +73,7 @@ export default function CoreGame() {
     readPreference(TUTORIAL_KEY) ? "fleet" : "tutorial",
   );
   const [open, setOpen] = useState(true);
+  const [importing, setImporting] = useState(false);
   const [fleetView, setFleetView] = useState<"operations" | "depot">(
     "operations",
   );
@@ -247,6 +249,7 @@ export default function CoreGame() {
     }
   };
   const importSave = async (file: File) => {
+    setImporting(true);
     try {
       if (!ownsSaveRef.current)
         throw new Error("Tutup tab operasi lain sebelum mengimpor save.");
@@ -262,6 +265,8 @@ export default function CoreGame() {
       notify("Checkpoint diimpor; progres offline direkonsiliasi.");
     } catch (e) {
       notify(`Impor gagal: ${(e as Error).message}`, true);
+    } finally {
+      setImporting(false);
     }
   };
   const nav = [
@@ -289,7 +294,7 @@ export default function CoreGame() {
     <main
       className={`core-game ${open ? "sidebar-open" : "sidebar-collapsed"}`}
     >
-      <CoreMap state={state} />
+      <Suspense fallback={<div className="map-boot-loading" role="status">Memuat peta operasi…</div>}><CoreMap state={state} /></Suspense>
       <header className="game-header">
         <div className="brand">
           <span className="brand-mark">
@@ -336,20 +341,6 @@ export default function CoreGame() {
         className="operations-panel"
         hidden={!open}
       >
-        <nav className="sidebar-nav" aria-label="Menu utama">
-          {nav.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              className={screen === id ? "active" : ""}
-              aria-label={label}
-              aria-current={screen === id ? "page" : undefined}
-              onClick={() => go(id, id === "fleet" ? "depot" : "operations")}
-            >
-              <Icon size={18} />
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
         {(history.length > 0 || (tutorialJourney && screen !== "tutorial")) && (
           <div className="navigation-trail">
             {history.length > 0 && (
@@ -389,6 +380,7 @@ export default function CoreGame() {
             <ChevronLeft size={20} />
           </button>
         </div>
+        <Suspense fallback={<div className="panel-loading" role="status"><span className="loading-spinner" />Memuat menu…</div>}>
         {screen === "fleet" && (
           <Fleet
             state={state}
@@ -488,6 +480,7 @@ export default function CoreGame() {
             </Card>
           </div>
         )}
+        </Suspense>
       </aside>
       {!open && (
         <button
@@ -500,7 +493,8 @@ export default function CoreGame() {
           <ChevronRight size={22} />
         </button>
       )}
-      <nav className="game-dock" aria-label="Akses cepat">
+      <nav className="game-dock" aria-label="Menu utama">
+        {nav.map(({ id, label, icon: Icon }) => <button key={id} aria-label={label} aria-current={screen === id && open ? "page" : undefined} className={screen === id && open ? "active" : ""} onClick={() => go(id)}><Icon size={20} /><span>{label}</span></button>)}
         <button
           aria-label="Depo"
           className={
@@ -520,6 +514,8 @@ export default function CoreGame() {
           <span>Suara</span>
         </button>
       </nav>
+      {importing && <div className="import-loading" role="status"><span className="loading-spinner" />Memulihkan checkpoint dan progres offline…</div>}
+      {!ownsSave && <div className="save-access-loading" role="status">Menunggu akses save. Tutup tab operasi lain jika masih terbuka.</div>}
       <Feedback notices={feedback.notices} dismiss={feedback.dismiss} />
       <div
         role={error ? "alert" : "status"}

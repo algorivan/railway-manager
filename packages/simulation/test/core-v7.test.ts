@@ -178,6 +178,19 @@ describe("v7 browser operations", () => {
     expect(s.runs[0]!.status).toBe("completed");
     expect(s.trainsets[0]!.location).toBe("STN_GMR_GAMBIR");
   });
+  it("preserves numbered segments from the first intermediate-station release", () => {
+    let s = setup();
+    const relation = s.services[0]!;
+    relation.stations = [s.hub, "STN_OSMN10693460259", "STN_OSMN6483392223", "STN_OSMN7835804886", "STN_OSMN1228413279", "STN_OSMN3469731328", "STN_GMR_GAMBIR"];
+    relation.segments = [5, 4, 3, 2, 1, 0].map((i) => `SEG_GMR_BD:stop:${i}`);
+    relation.stops = [...relation.stations];
+    const restored = restoreCore(serializeCore(s))!;
+    const forecast = forecastCore(restored, restored.trainsets[0]!.id, relation.id);
+    expect(forecast.legs).toHaveLength(6);
+    expect(forecast.legs[0]!.to).toBe("STN_OSMN10693460259");
+    expect(forecast.legs.reduce((sum, leg) => sum + leg.km, 0)).toBeCloseTo(160);
+    expect(forecast.destination).toBe("STN_GMR_GAMBIR");
+  });
   it("distinguishes passed stations from commercial stops and does not add dwell to a pass", () => {
     let s = setup();
     s.access.push("SEG_GMR_CN");
@@ -577,7 +590,7 @@ describe("v7 browser operations", () => {
     expect(() => restoreCore(JSON.stringify(missing))).toThrow();
   });
   it("recall returns physically, burns fuel, cancels unsettled tickets and cannot refund twice", () => {
-    let s = at(operating(), 430);
+    let s = at(operating(), 422.5);
     const id = s.runs[0]!.id;
     s = apply(s, { type: "recall", runId: id }, "recall-request", s.anchorMs);
     const firstArrival = s.runs[0]!.nextEvent;
@@ -654,7 +667,7 @@ describe("v7 browser operations", () => {
       "plan",
       epoch,
     );
-    s = at(s, 430);
+    s = at(s, 422.5);
     const runId = s.runs[0]!.id;
     s = apply(s, { type: "stop", runId }, "stop", s.anchorMs);
     const safeStation = s.runs[0]!.legs[s.runs[0]!.leg]!.to;
