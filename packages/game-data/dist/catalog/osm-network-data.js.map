@@ -1,0 +1,1 @@
+{"version":3,"file":"osm-network-data.js","sourceRoot":"","sources":["../../src/catalog/osm-network-data.ts"],"names":[],"mappings":"AAEA,MAAM,CAAC,MAAM,gBAAgB,GAAuB;IAClD,UAAU,EAAE,IAAI;IAChB,MAAM,EAAE,gEAAgE;IACxE,QAAQ,EAAE,EAAE;IACZ,QAAQ,EAAE,EAAE;IACZ,YAAY,EAAE,EAAE;CACjB,CAAC"}

@@ -18,6 +18,9 @@ export function writePreference(key: string, value: string) {
   }
 }
 export const actionMessages: Record<CoreAction["type"], string> = {
+  foundCompany:
+    "Depo didirikan dan hub pertama ditetapkan. Perusahaan siap beroperasi.",
+  enableMissions: "Misi dan reward perusahaan diaktifkan.",
   hub: "Hub awal dipilih.",
   order: "Pesanan tercatat. Terima sarana setelah siap.",
   accept: "Sarana diterima ke inventori.",
@@ -96,10 +99,10 @@ export function useFeedback() {
       /* Visual feedback remains available without browser audio. */
     }
   };
-  const notify = (message: string, failed = false) => {
+  const notify = (message: string, failed = false, audible = true) => {
     const id = ++counter.current;
     setNotices((items) => [...items.slice(-2), { id, message, failed }]);
-    play(failed);
+    if (audible) play(failed);
     if (!failed) {
       const timer = setTimeout(() => {
         setNotices((items) => items.filter((item) => item.id !== id));

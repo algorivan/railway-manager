@@ -1,5 +1,10 @@
 import type { CoreClass } from "@railway/game-data";
-import { stationName, type CoreRun, type CoreState } from "@railway/simulation";
+import {
+  stationName,
+  coreRunMotion,
+  type CoreRun,
+  type CoreState,
+} from "@railway/simulation";
 import { compact, when } from "./presentation";
 
 export function RunReport({
@@ -10,6 +15,7 @@ export function RunReport({
   state: CoreState;
 }) {
   const leg = r.legs[Math.min(r.leg, r.legs.length - 1)]!;
+  const movement = coreRunMotion(r, s.minute);
   const progress =
     r.status === "completed"
       ? 1
@@ -25,7 +31,7 @@ export function RunReport({
             ? "Selesai"
             : r.phase === "dwell"
               ? "Berhenti"
-              : `${leg.speed} km/h`}
+              : `${movement.speedKmh.toFixed(0)} km/h · ${movement.phase}`}
         </span>
       </div>
       <div className="progress">
@@ -58,6 +64,8 @@ export function RunReport({
       <p className="muted">
         {r.reason || `Berikut: ${stationName(leg.to)}`} ·{" "}
         {Math.round(r.fuelLiters)} L fuel perjalanan
+        {leg.motion &&
+          ` · batas lintas ${leg.speed} km/h · gradien ${leg.motion.gradientPermille === null ? "belum diketahui" : `${leg.motion.gradientPermille}‰`}`}
       </p>
       {r.status === "running" && (
         <p>

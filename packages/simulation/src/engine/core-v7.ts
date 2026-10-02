@@ -1,13 +1,25 @@
 import { z } from "zod";
+import {
+  buildTrainMotion,
+  motionMinutes,
+  sampleTrainMotion,
+  type TrainMotion,
+} from "./train-motion.js";
 import { WorkloadCalculator } from "@railway/workforce";
 import {
   CORE_BALANCE as B,
   CORE_PRODUCTS,
+  CORE_DEPOT_CITIES,
+  CORE_ONBOARDING_MISSIONS,
+  depotContractPrice,
+  type OnboardingMissionId,
   CORE_FARES,
   CORE_STATION_PROVINCE,
   CoreClass,
-  JAVA_STATION_CATALOG as STATIONS,
-  JAVA_TRACK_CORRIDOR_SEGMENTS as TRACKS,
+  CORE_OPERATING_STATIONS as STATIONS,
+  CORE_ROUTING_TRACKS,
+  operatingTrackAccessible,
+  CORE_OPERATING_TRACKS as TRACKS,
 } from "@railway/game-data";
 
 export const coreProduct = (id: string) => {
@@ -57,6 +69,7 @@ export interface CorePlan {
   cycle: number;
   offset: number;
   nextAt: number;
+  once?: boolean;
   active: boolean;
 }
 export interface CoreBooking {
@@ -90,6 +103,8 @@ export interface CoreRun {
     speed: number;
     minutes: number;
     commercialStop?: boolean;
+    gradientPermille?: number;
+    motion?: TrainMotion;
   }[];
   bookings: CoreBooking[];
   seats: Record<CoreClass, number>;
@@ -107,6 +122,8 @@ export interface CoreRun {
 }
 export interface CoreState {
   version: 7;
+  companyStarted?: boolean;
+  progression?: { xp: number; claimed: OnboardingMissionId[] };
   minute: number;
   anchorMs: number;
   mode: "Realism" | "Casual";
@@ -124,6 +141,7 @@ export interface CoreState {
     cost: number;
     capacity: number;
     upgradeEnd?: number;
+    contractCost?: number;
   }[];
   orders: {
     id: string;
@@ -154,11 +172,40 @@ export interface CoreState {
 }
 const classes: CoreClass[] = ["EC", "EX", "LX"];
 export const pace = (s: CoreState) => (s.mode === "Casual" ? 1.5 : 1);
+function starterTrackAccess(hub: string): string[] {
+  const access = new Set(
+    TRACKS.filter(
+      (t) => t.originStationId === hub || t.destinationStationId === hub,
+    ).map((t) => t.id),
+  );
+  const queue = [hub],
+    visited = new Set<string>();
+  while (queue.length) {
+    const station = queue.shift()!;
+    if (visited.has(station)) continue;
+    visited.add(station);
+    for (const edge of CORE_ROUTING_TRACKS) {
+      const next =
+        edge.originStationId === station
+          ? edge.destinationStationId
+          : edge.destinationStationId === station
+            ? edge.originStationId
+            : undefined;
+      if (!next) continue;
+      access.add(edge.id);
+      if (STATIONS.find((s) => s.id === next)?.kind === "junction")
+        queue.push(next);
+    }
+  }
+  return [...access];
+}
 export function createCoreState(
   now: number,
   hub: string = B.starterHub,
 ): CoreState {
-  if (!STATIONS.some((x) => x.id === hub))
+  if (
+    !STATIONS.some((x) => x.id === hub && x.kind === "station" && x.connected)
+  )
     throw new Error("Hub tidak tersedia.");
   const starterCost =
     coreProduct("cc201").price +
@@ -182,11 +229,98 @@ export function createCoreState(
     ledger: [],
     actions: [],
     demandUsed: {},
-    access: TRACKS.filter(
-      (x) => x.originStationId === hub || x.destinationStationId === hub,
-    ).map((x) => x.id),
+    access: starterTrackAccess(hub),
     campaigns: [],
     nextOverhead: 1440,
+  };
+}
+/** Only new browser games use the mandatory company setup; legacy saves keep their depot. */
+export function createCompanyDraft(now: number): CoreState {
+  return {
+    ...createCoreState(now),
+    companyStarted: false,
+    depots: [],
+    access: [],
+    progression: { xp: 0, claimed: [] },
+  };
+}
+export function coreMissionStatus(s: CoreState) {
+  const starter = [
+    ["cc201", 1],
+    ["ec-standard", 4],
+    ["generator", 1],
+  ] as const;
+  const ready = (id: OnboardingMissionId): boolean => {
+    switch (id) {
+      case "company":
+        return (
+          s.companyStarted !== false &&
+          s.depots.some((d) => d.station === s.hub)
+        );
+      case "orders":
+        return starter.every(
+          ([id, count]) =>
+            s.orders
+              .filter((o) => o.productId === id)
+              .reduce((n, o) => n + o.quantity, 0) >= count,
+        );
+      case "accept":
+        return starter.every(
+          ([id, count]) =>
+            s.units.filter((u) => u.productId === id).length >= count,
+        );
+      case "formation":
+        return s.trainsets.some((t) => coreFormation(s, t).capacity > 0);
+      case "crew":
+        return s.trainsets.length > 0 && s.trainsets.every((t) => t.crew);
+      case "fuel":
+        return s.trainsets.some(
+          (t) =>
+            t.units.some((id) =>
+              s.units.some(
+                (u) => u.id === id && coreProduct(u.productId).tank > 0,
+              ),
+            ) &&
+            t.units.every((id) => {
+              const u = s.units.find((u) => u.id === id)!;
+              return !coreProduct(u.productId).tank || u.fuel > 0;
+            }),
+        );
+      case "service":
+        return s.services.length > 0;
+      case "schedule":
+        return s.plans.some((p) => p.active);
+      case "run":
+        return s.runs.some((r) => r.status === "completed" && !r.recalling);
+    }
+  };
+  return CORE_ONBOARDING_MISSIONS.map((mission) => ({
+    ...mission,
+    completed: s.progression?.claimed.includes(mission.id) ?? false,
+    eligible: s.companyStarted !== false && ready(mission.id),
+  }));
+}
+function awardMissions(s: CoreState) {
+  if (!s.progression || s.companyStarted === false) return;
+  for (const mission of coreMissionStatus(s)) {
+    if (!mission.eligible || mission.completed) continue;
+    accounting(
+      s,
+      `mission:${mission.id}`,
+      `Hadiah misi • ${mission.title}`,
+      mission.cash,
+    );
+    s.progression.claimed.push(mission.id);
+    s.progression.xp += mission.xp;
+  }
+}
+export function coreLevel(s: CoreState) {
+  const xp = s.progression?.xp ?? 0;
+  return {
+    level: 1 + Math.floor(xp / 100),
+    xp,
+    inLevel: xp % 100,
+    nextLevelAt: (Math.floor(xp / 100) + 1) * 100,
   };
 }
 export function findCorePath(
@@ -206,8 +340,8 @@ export function findCorePath(
     const [id, d] = current;
     if (id === to) break;
     visited.add(id);
-    for (const edge of TRACKS) {
-      if (allowed && !allowed.includes(edge.id)) continue;
+    for (const edge of CORE_ROUTING_TRACKS) {
+      if (allowed && !operatingTrackAccessible(edge, allowed)) continue;
       const next =
         edge.originStationId === id
           ? edge.destinationStationId
@@ -257,19 +391,45 @@ function legsFor(
 ) {
   const f = coreFormation(s, t),
     stationIds = reverse ? [...r.stations].reverse() : r.stations;
-  return (reverse ? [...r.segments].reverse() : r.segments).map((id, i) => {
-    const edge = TRACKS.find((x) => x.id === id)!;
-    const speed = Math.min(f.speed, edge.trackSpeedLimitKmh);
-    return {
-      segmentId: id,
-      from: stationIds[i]!,
-      to: stationIds[i + 1]!,
-      commercialStop: (r.stops ?? r.stations).includes(stationIds[i + 1]!),
-      km: edge.distanceKm,
-      speed,
-      minutes: (edge.distanceKm / speed) * 60,
-    };
-  });
+  const sections = (reverse ? [...r.segments].reverse() : r.segments).map(
+    (id, i) => {
+      const edge = TRACKS.find((x) => x.id === id)!;
+      const speed = Math.min(f.speed, edge.trackSpeedLimitKmh);
+      return {
+        segmentId: id,
+        from: stationIds[i]!,
+        to: stationIds[i + 1]!,
+        commercialStop: (r.stops ?? r.stations).includes(stationIds[i + 1]!),
+        km: edge.distanceKm,
+        speed,
+        minutes: (edge.distanceKm / speed) * 60,
+        gradientPermille:
+          edge.gradientPermille === undefined
+            ? undefined
+            : edge.gradientPermille *
+              (stationIds[i] === edge.originStationId ? 1 : -1),
+      };
+    },
+  );
+  const motion = buildTrainMotion(sections, f.weight);
+  return sections.map((section, i) => ({
+    ...section,
+    motion: motion[i]!,
+    minutes: motionMinutes(motion[i]!),
+  }));
+}
+export function coreRunMotion(run: CoreRun, minute: number) {
+  const leg = run.legs[run.leg];
+  if (!leg || run.status !== "running" || run.phase === "dwell")
+    return { fraction: 0, speedKmh: 0, phase: "Berhenti" };
+  const elapsed = Math.max(0, minute - (run.nextEvent - leg.minutes));
+  return leg.motion
+    ? sampleTrainMotion(leg.motion, elapsed * 60)
+    : {
+        fraction: Math.min(1, elapsed / leg.minutes),
+        speedKmh: leg.speed,
+        phase: "Jelajah",
+      };
 }
 function accounting(
   s: CoreState,
@@ -498,7 +658,15 @@ export function coreReadiness(
     )
   )
     reasons.push("Panjang rangkaian melebihi peron.");
-  if (r.segments.some((id) => !s.access.includes(id)))
+  if (
+    r.segments.some(
+      (id) =>
+        !operatingTrackAccessible(
+          TRACKS.find((t) => t.id === id)!,
+          s.access,
+        ),
+    )
+  )
     reasons.push("Hak akses lintas belum tersedia.");
   const depot = s.depots.find((d) => d.station === t.location);
   let refill = 0;
@@ -572,6 +740,18 @@ function startRun(s: CoreState, run: CoreRun) {
   );
   t.parked = false;
 }
+function restartMotion(s: CoreState, run: CoreRun) {
+  const tail = run.legs.slice(run.leg);
+  if (!tail[0]?.motion || tail[0].motion.entryKmh === 0) return;
+  const t = s.trainsets.find((t) => t.id === run.trainsetId)!;
+  const motions = buildTrainMotion(tail, coreFormation(s, t).weight);
+  tail.forEach((leg, index) => {
+    const minutes = motionMinutes(motions[index]!);
+    run.end += minutes - leg.minutes;
+    leg.minutes = minutes;
+    leg.motion = motions[index]!;
+  });
+}
 function conflictDelay(s: CoreState, run: CoreRun): number {
   const leg = run.legs[run.leg]!,
     track = TRACKS.find((x) => x.id === leg.segmentId)!;
@@ -585,8 +765,15 @@ function conflictDelay(s: CoreState, run: CoreRun): number {
       continue;
     const active = other.legs[other.leg]!;
     if (
-      active.segmentId === leg.segmentId &&
-      (!track.isDoubleTrack || active.from === leg.from)
+      (active.segmentId === leg.segmentId ||
+        track.accessKeys.some((id) =>
+          TRACKS.find((t) => t.id === active.segmentId)?.accessKeys.includes(
+            id,
+          ),
+        )) &&
+      (active.segmentId !== leg.segmentId ||
+        !track.isDoubleTrack ||
+        active.from === leg.from)
     )
       until = Math.max(until, other.nextEvent + B.headwayMinutes);
   }
@@ -639,6 +826,7 @@ function advanceOwned(s: CoreState, target: number) {
           run.reason = "Menunggu blok lintas bebas.";
           continue;
         }
+        if (run.reason === "Menunggu blok lintas bebas.") restartMotion(s, run);
         run.phase = "move";
         run.reason = "";
         run.nextEvent = next + run.legs[run.leg]!.minutes;
@@ -669,18 +857,19 @@ function advanceOwned(s: CoreState, target: number) {
         run.stopRequested = false;
         const path = findCorePath(t.location, run.origin, s.access);
         const f = coreFormation(s, t);
-        const back = path.segments.map((id, i) => {
-          const edge = TRACKS.find((e) => e.id === id)!;
-          const speed = Math.min(f.speed, edge.trackSpeedLimitKmh);
-          return {
-            segmentId: id,
-            from: path.stations[i]!,
-            to: path.stations[i + 1]!,
-            km: edge.distanceKm,
-            speed,
-            minutes: (edge.distanceKm / speed) * 60,
-          };
-        });
+        const back = legsFor(
+          s,
+          t,
+          {
+            ...s.services.find((r) => r.id === run.serviceId)!,
+            ...path,
+            stops: path.stations.filter(
+              (id) => STATIONS.find((st) => st.id === id)?.kind === "station",
+            ),
+          },
+          false,
+        );
+        /* Legacy per-distance recall accounting is retained below. */
         const cashCost = back.reduce(
           (v, l) =>
             v +
@@ -731,7 +920,10 @@ function advanceOwned(s: CoreState, target: number) {
         run.end =
           next +
           back.reduce((v, l) => v + l.minutes, 0) +
-          back.length * B.dwellMinutes;
+          (1 +
+            back.slice(0, -1).filter((l) => l.commercialStop !== false)
+              .length) *
+            B.dwellMinutes;
         const need = back.reduce((v, l) => v + l.km, 0);
         if (
           f.units.some(
@@ -803,7 +995,10 @@ function advanceOwned(s: CoreState, target: number) {
         run.phase = "dwell";
         run.nextEvent =
           next + (leg.commercialStop === false ? 0 : B.dwellMinutes);
-        if (run.stopRequested) {
+        if (
+          run.stopRequested &&
+          STATIONS.find((st) => st.id === leg.to)?.kind === "station"
+        ) {
           run.stopRequested = false;
           run.status = "stopped";
           run.stoppedAt = next;
@@ -815,7 +1010,8 @@ function advanceOwned(s: CoreState, target: number) {
     }
     for (const p of s.plans.filter((p) => p.active && p.nextAt <= next)) {
       const at = p.nextAt;
-      p.nextAt += p.cycle;
+      if (p.once) p.active = false;
+      else p.nextAt += p.cycle;
       if (
         s.runs.some(
           (r) =>
@@ -855,9 +1051,12 @@ export function catchUpCore(state: CoreState, now: number): CoreState {
     delta = Math.max(0, now - s.anchorMs);
   advanceOwned(s, s.minute + (delta / 60000) * pace(s));
   s.anchorMs = Math.max(now, s.anchorMs);
+  awardMissions(s);
   return s;
 }
 export type CoreAction =
+  | { type: "foundCompany"; cityId: string; hubStationId: string }
+  | { type: "enableMissions" }
   | { type: "hub"; station: string }
   | {
       type: "order";
@@ -870,7 +1069,7 @@ export type CoreAction =
   | { type: "formation"; trainsetId?: string; name: string; units: string[] }
   | {
       type: "service";
-      name: string;
+      name?: string;
       origin: string;
       destination: string;
       category: string;
@@ -890,6 +1089,7 @@ export type CoreAction =
       cycle: number;
       offset: number;
       roundTrip: boolean;
+      reverse?: boolean;
     }
   | {
       type: "diagram";
@@ -931,9 +1131,42 @@ export function applyCoreAction(
     if (s.runs.some((r) => r.trainsetId === t.id && r.status === "running"))
       throw new Error("Tunggu trainset tiba.");
   };
+  if (s.companyStarted === false && action.type !== "foundCompany")
+    throw new Error("Dirikan depo dan pilih hub terlebih dahulu.");
   switch (action.type) {
+    case "foundCompany": {
+      if (s.companyStarted !== false)
+        throw new Error("Perusahaan sudah didirikan.");
+      const city = CORE_DEPOT_CITIES.find((c) => c.id === action.cityId);
+      if (!city || !city.stationIds.includes(action.hubStationId))
+        throw new Error("Pilih hub yang tersedia dalam kota depo.");
+      accounting(s, id, `Kontrak depo awal • ${city.name}`, -city.cost);
+      s.hub = action.hubStationId;
+      s.depots = [
+        {
+          station: s.hub,
+          stock: 0,
+          cost: 0,
+          capacity: B.depotCapacity,
+          contractCost: city.cost,
+        },
+      ];
+      s.access = starterTrackAccess(s.hub);
+      s.companyStarted = true;
+      break;
+    }
+    case "enableMissions": {
+      if (s.progression) throw new Error("Misi sudah aktif.");
+      s.progression = { xp: 0, claimed: [] };
+      break;
+    }
     case "hub": {
-      if (s.orders.length || s.units.length || s.trainsets.length)
+      if (
+        s.companyStarted ||
+        s.orders.length ||
+        s.units.length ||
+        s.trainsets.length
+      )
         throw new Error(
           "Hub awal hanya dapat dipilih sebelum pengadaan pertama.",
         );
@@ -1052,27 +1285,55 @@ export function applyCoreAction(
       break;
     }
     case "service": {
-      if (!action.name.trim()) throw new Error("Nama relasi diperlukan.");
       const path = findCorePath(action.origin, action.destination, s.access);
-      const stops = action.stops ?? path.stations;
+      const endpoints = [action.origin, action.destination];
+      if (
+        endpoints.some(
+          (id) =>
+            !STATIONS.some(
+              (st) => st.id === id && st.kind === "station" && st.connected,
+            ),
+        )
+      )
+        throw new Error("Pilih stasiun penumpang yang terhubung ke lintas.");
+      const stops =
+        action.stops ??
+        path.stations.filter(
+          (id) => STATIONS.find((st) => st.id === id)?.kind === "station",
+        );
       if (
         !stops.includes(action.origin) ||
         !stops.includes(action.destination) ||
-        stops.some((st) => !path.stations.includes(st))
+        stops.some(
+          (st) =>
+            !path.stations.includes(st) ||
+            STATIONS.find((s) => s.id === st)?.kind !== "station",
+        )
       )
         throw new Error(
           "Pemberhentian harus berada dalam path dan mencakup kedua endpoint.",
         );
+      const provinces = path.stations
+        .filter((id) => STATIONS.find((st) => st.id === id)?.kind === "station")
+        .map(
+          (id) =>
+            STATIONS.find((st) => st.id === id)?.province ??
+            CORE_STATION_PROVINCE[id],
+        );
       if (
         action.category === "Local" &&
-        new Set(path.stations.map((st) => CORE_STATION_PROVINCE[st])).size > 1
+        provinces.some((province) => !province)
       )
+        throw new Error(
+          "Provinsi lintas belum terverifikasi. Gunakan kategori Custom.",
+        );
+      if (action.category === "Local" && new Set(provinces).size > 1)
         throw new Error(
           "Preset Local harus berada dalam satu provinsi sepanjang path.",
         );
       s.services.push({
         id,
-        name: action.name.trim(),
+        name: action.name?.trim() || coreServiceName(action.origin, action.destination),
         ...path,
         stops: [...new Set(stops)],
         category: action.category,
@@ -1106,44 +1367,33 @@ export function applyCoreAction(
         action.offset >= action.cycle
       )
         throw new Error("Pilih diagram 24/48/72 jam dan waktu legal.");
-      if (t.location !== r.stations[0])
-        throw new Error("Trainset harus berada di asal relasi.");
-      const duration = forecastCore(s, t.id, r.id).end - s.minute;
-      if (
-        action.roundTrip &&
-        duration * 2 + B.turnaroundMinutes * 2 > action.cycle
-      )
+      const reverse = action.reverse ?? false;
+      const outbound = forecastCore(s, t.id, r.id, reverse);
+      if (t.location !== outbound.origin)
+        throw new Error(`Trainset berada di ${stationName(t.location)}; pilih arah dari stasiun tersebut.`);
+      const duration = outbound.end - outbound.start;
+      const inbound = forecastCore(s, t.id, r.id, !reverse);
+      if (action.roundTrip && duration + inbound.end - inbound.start + B.turnaroundMinutes * 2 > action.cycle)
         throw new Error("PP dan turnaround tidak muat dalam siklus.");
       if (s.plans.some((p) => p.trainsetId === t.id && p.active))
         throw new Error("Nonaktifkan diagram sebelumnya sebelum menggantinya.");
       const base = Math.floor(s.minute / action.cycle) * action.cycle;
       let first = base + action.offset;
       if (first < s.minute) first += action.cycle;
+      if (first < t.readyAt)
+        throw new Error(`Jeda persiapan belum selesai; keberangkatan paling awal menit ${Math.ceil(t.readyAt)}.`);
       const p: CorePlan = {
-        id,
-        trainsetId: t.id,
-        serviceId: r.id,
-        reverse: false,
-        cycle: action.cycle,
-        offset: action.offset,
-        nextAt: first,
-        active: true,
+        id, trainsetId: t.id, serviceId: r.id, reverse,
+        cycle: action.cycle, offset: action.offset,
+        nextAt: first, once: !action.roundTrip, active: true,
       };
       s.plans.push(p);
       if (action.roundTrip)
         s.plans.push({
-          ...p,
-          id: `${id}:return`,
-          reverse: true,
-          offset:
-            (action.offset + duration + B.turnaroundMinutes) % action.cycle,
+          ...p, id: `${id}:return`, reverse: !reverse,
+          offset: (action.offset + duration + B.turnaroundMinutes) % action.cycle,
           nextAt: first + duration + B.turnaroundMinutes,
         });
-      else p.active = false;
-      if (!action.roundTrip)
-        throw new Error(
-          "Diagram berulang memerlukan PP untuk kembali ke lokasi asal.",
-        );
       break;
     }
     case "disablePlan": {
@@ -1205,6 +1455,8 @@ export function applyCoreAction(
       }
       const base = Math.floor(s.minute / action.cycle) * action.cycle;
       const shift = base + duties[0]!.offset < s.minute ? action.cycle : 0;
+      if (base + shift + duties[0]!.offset < t.readyAt)
+        throw new Error("Dinas pertama dimulai sebelum jeda persiapan selesai.");
       duties.forEach((d, i) =>
         s.plans.push({
           id: `${id}:${i}`,
@@ -1253,6 +1505,9 @@ export function applyCoreAction(
           );
           delete r.recallCashDue;
         }
+        restartMotion(s, r);
+        if (r.leg > 0 && r.legs[r.leg - 1]?.commercialStop === false)
+          r.end += B.dwellMinutes;
         r.delay += s.minute - (r.stoppedAt ?? s.minute);
         r.end += s.minute - (r.stoppedAt ?? s.minute);
         r.status = "running";
@@ -1433,25 +1688,33 @@ export function applyCoreAction(
     }
     case "depot": {
       if (
-        !STATIONS.some((x) => x.id === action.station) ||
+        !STATIONS.some(
+          (x) => x.id === action.station && x.kind === "station" && x.connected,
+        ) ||
         s.depots.some((x) => x.station === action.station)
       )
         throw new Error("Lokasi dipo tidak valid.");
       if (
         !TRACKS.some(
           (e) =>
-            s.access.includes(e.id) &&
+            operatingTrackAccessible(e, s.access) &&
             (e.originStationId === action.station ||
               e.destinationStationId === action.station),
         )
       )
         throw new Error("Dipo harus di jaringan yang terbuka.");
-      accounting(s, id, "Kontrak fasilitas dipo", -B.depotContractCost);
+      accounting(
+        s,
+        id,
+        "Kontrak fasilitas dipo",
+        -depotContractPrice(action.station),
+      );
       s.depots.push({
         station: action.station,
         stock: 0,
         cost: 0,
         capacity: B.depotCapacity,
+        contractCost: depotContractPrice(action.station),
       });
       break;
     }
@@ -1465,13 +1728,12 @@ export function applyCoreAction(
     }
     case "access": {
       const edge = TRACKS.find((x) => x.id === action.segmentId);
-      if (!edge || s.access.includes(edge.id))
+      if (!edge || operatingTrackAccessible(edge, s.access))
         throw new Error("Koridor tidak tersedia.");
       const network = new Set(
-        s.access.flatMap((eid) => {
-          const e = TRACKS.find((x) => x.id === eid)!;
-          return [e.originStationId, e.destinationStationId];
-        }),
+        TRACKS.filter((e) => operatingTrackAccessible(e, s.access)).flatMap(
+          (e) => [e.originStationId, e.destinationStationId],
+        ),
       );
       if (
         !network.has(edge.originStationId) &&
@@ -1518,6 +1780,7 @@ export function applyCoreAction(
     }
   }
   s.actions.push(id);
+  awardMissions(s);
   return s;
 }
 
@@ -1550,6 +1813,21 @@ const legSchema = z.object({
   speed: finite.positive(),
   minutes: finite.positive(),
   commercialStop: z.boolean().optional(),
+  gradientPermille: finite.optional(),
+  motion: z
+    .object({
+      entryKmh: finite.nonnegative(),
+      peakKmh: finite.positive(),
+      exitKmh: finite.nonnegative(),
+      accelerationMps2: finite.positive(),
+      brakingMps2: finite.positive(),
+      accelerationSeconds: finite.nonnegative(),
+      cruiseSeconds: finite.nonnegative(),
+      brakingSeconds: finite.nonnegative(),
+      distanceKm: finite.positive(),
+      gradientPermille: finite.nullable(),
+    })
+    .optional(),
 });
 const runSchema = z.object({
   id: z.string(),
@@ -1596,6 +1874,25 @@ const runSchema = z.object({
 });
 const saveSchema = z.object({
   version: z.literal(7),
+  companyStarted: z.boolean().optional(),
+  progression: z
+    .object({
+      xp: finite.int().nonnegative(),
+      claimed: z.array(
+        z.enum([
+          "company",
+          "orders",
+          "accept",
+          "formation",
+          "crew",
+          "fuel",
+          "service",
+          "schedule",
+          "run",
+        ]),
+      ),
+    })
+    .optional(),
   minute: finite,
   anchorMs: finite,
   mode: z.enum(["Realism", "Casual"]),
@@ -1640,6 +1937,7 @@ const saveSchema = z.object({
       offset: finite,
       nextAt: finite,
       active: z.boolean(),
+      once: z.boolean().optional(),
     }),
   ),
   runs: z.array(runSchema),
@@ -1650,6 +1948,7 @@ const saveSchema = z.object({
       cost: finite.nonnegative(),
       capacity: finite.positive(),
       upgradeEnd: finite.optional(),
+      contractCost: finite.nonnegative().optional(),
     }),
   ),
   orders: z.array(
@@ -1690,6 +1989,26 @@ export function serializeCore(s: CoreState): string {
 }
 export function restoreCore(json: string): CoreState {
   const s = saveSchema.parse(JSON.parse(json)) as CoreState;
+  if (
+    s.progression &&
+    (new Set(s.progression.claimed).size !== s.progression.claimed.length ||
+      s.progression.xp !==
+        CORE_ONBOARDING_MISSIONS.filter((m) =>
+          s.progression!.claimed.includes(m.id),
+        ).reduce((n, m) => n + m.xp, 0))
+  )
+    throw new Error("Progres misi save tidak konsisten.");
+  if (
+    s.companyStarted === false &&
+    (s.depots.length ||
+      s.units.length ||
+      s.trainsets.length ||
+      s.orders.length ||
+      s.services.length ||
+      s.plans.length ||
+      s.runs.length)
+  )
+    throw new Error("Setup perusahaan save tidak konsisten.");
   const ids = new Set(s.units.map((u) => u.id)),
     assigned = s.trainsets.flatMap((t) => t.units);
   if (
@@ -1779,4 +2098,10 @@ export function previewCoreRoundTrip(
     contribution:
       outbound.revenue + inbound.revenue - outbound.cost - inbound.cost,
   };
+}
+
+/** Endpoint codes identify a reusable, bidirectional company relation. */
+export function coreServiceName(origin: string, destination: string): string {
+  const code = (id: string) => STATIONS.find((station) => station.id === id)?.code ?? id;
+  return `${code(origin)} – ${code(destination)}`;
 }

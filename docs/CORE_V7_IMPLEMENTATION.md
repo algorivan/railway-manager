@@ -54,3 +54,7 @@ Every simulation action has a specific success message; rejected actions expose 
 The Tutorial menu opens initially until the player dismisses the introduction and is always available afterward. Seven steps link directly to operating menus and derive completion from current state. Purchasing one unit does not complete the starter checklist. Tutorial and sound preferences are stored independently from game saves and tolerate unavailable preference storage.
 
 Validation includes recruitment unit tests (empty demand, persistence, repeated requests, multiple trainsets, moving-train rejection, formation growth and night duties) and browser checks for success/failure sounds, persistent mute, failed imports, exports, toast expiry/dismissal, tutorial progress, automatic recruitment and mobile layout.
+
+## Operating-map and onboarding update
+
+See [Operating map, motion and company onboarding](OPERATING_MAP_AND_ONBOARDING.md) for the later sidebar/depot changes, mandatory new-company setup, mission rewards and variable-speed model. The national OSM snapshot remains pending network access; the original seven-station/nine-corridor catalog is preserved for legacy saves.

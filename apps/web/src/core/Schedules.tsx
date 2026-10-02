@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, ArrowRight, ShieldCheck, Play, X } from "lucide-react";
 import {
   CORE_FARES,
-  JAVA_STATION_CATALOG as stations,
-  JAVA_TRACK_CORRIDOR_SEGMENTS as tracks,
+  CORE_SELECTABLE_STATIONS as stations,
+  CORE_OPERATING_TRACKS as tracks,
   type CoreClass,
 } from "@railway/game-data";
 import {
   findCorePath,
+  coreServiceName,
   coreFormation,
   coreReadiness,
   previewCoreRoundTrip,
@@ -17,21 +18,25 @@ import {
 } from "@railway/simulation";
 import { Card, clock, when, money, compact, type Act } from "./presentation";
 import { RunReport } from "./RunReport";
+import { StationPicker } from "./StationPicker";
 
 export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
   const [wizard, setWizard] = useState(false),
     [stage, setStage] = useState(1);
-  const [name, setName] = useState("Layanan pertama"),
-    [origin, setOrigin] = useState(s.hub);
-  const defaultDest = tracks.find(
-    (e) => e.originStationId === s.hub || e.destinationStationId === s.hub,
-  );
+  const [origin, setOrigin] = useState(s.hub);
+  const defaultDest = stations.find((st) => {
+    if (st.id === s.hub || !st.connected) return false;
+    try {
+      findCorePath(s.hub, st.id, s.access);
+      return true;
+    } catch {
+      return false;
+    }
+  });
   const [dest, setDest] = useState(
-    defaultDest
-      ? defaultDest.originStationId === s.hub
-        ? defaultDest.destinationStationId
-        : defaultDest.originStationId
-      : stations[0]!.id,
+    defaultDest?.id ??
+      stations.find((st) => st.connected && st.id !== s.hub)?.id ??
+      s.hub,
   );
   const [skippedStops, setSkippedStops] = useState<string[]>([]);
   const [category, setCategory] = useState("Custom");
@@ -42,6 +47,8 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
   const [showPreview, setShowPreview] = useState(false),
     [graph, setGraph] = useState(false);
   const [advanced, setAdvanced] = useState(false);
+  const [reverse, setReverse] = useState(false), [roundTrip, setRoundTrip] = useState(true);
+  const name = coreServiceName(origin, dest);
   const [duties, setDuties] = useState<
     { serviceId: string; reverse: boolean; offset: number }[]
   >([]);
@@ -53,13 +60,18 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
     pathError = (e as Error).message;
   }
   const commercialStops =
-    path?.stations.filter((id) => !skippedStops.includes(id)) ?? [];
+    path?.stations.filter(
+      (id) => stations.some((st) => st.id === id) && !skippedStops.includes(id),
+    ) ?? [];
   const selectedT = s.trainsets.find((t) => t.id === tid),
     selectedR = s.services.find((r) => r.id === rid);
+  useEffect(() => {
+    if (selectedT && selectedR) setReverse(selectedT.location === selectedR.stations.at(-1));
+  }, [tid, rid, selectedT?.location]);
   const preview =
     selectedT && selectedR ? previewCoreRoundTrip(s, tid, rid) : undefined;
   const readiness =
-    selectedT && selectedR ? coreReadiness(s, selectedT, selectedR) : [];
+    selectedT && selectedR ? coreReadiness(s, selectedT, selectedR, reverse) : [];
   return (
     <div className="panel-scroll">
       <div className="toolbar">
@@ -87,29 +99,16 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
           </div>
           {stage === 1 && (
             <>
-              <label>
-                Stasiun awal
-                <select
-                  value={origin}
-                  onChange={(e) => setOrigin(e.target.value)}
-                >
-                  {stations.map((st) => (
-                    <option key={st.id} value={st.id}>
-                      {stationName(st.id)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Stasiun akhir
-                <select value={dest} onChange={(e) => setDest(e.target.value)}>
-                  {stations.map((st) => (
-                    <option key={st.id} value={st.id}>
-                      {stationName(st.id)}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <StationPicker
+                label="Stasiun awal"
+                value={origin}
+                onChange={setOrigin}
+              />
+              <StationPicker
+                label="Stasiun akhir"
+                value={dest}
+                onChange={setDest}
+              />
               <label>
                 Kategori
                 <select
@@ -122,24 +121,31 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
                 </select>
               </label>
               <p className={pathError ? "warning-text" : "muted"}>
-                {pathError || path?.stations.map(stationName).join(" → ")}
+                {pathError ||
+                  path?.stations
+                    .filter((id) => stations.some((st) => st.id === id))
+                    .map(stationName)
+                    .join(" → ")}
               </p>
-              {path?.stations.slice(1, -1).map((id) => (
-                <label className="stop-choice" key={id}>
-                  <input
-                    type="checkbox"
-                    checked={!skippedStops.includes(id)}
-                    onChange={(e) =>
-                      setSkippedStops(
-                        e.target.checked
-                          ? skippedStops.filter((x) => x !== id)
-                          : [...skippedStops, id],
-                      )
-                    }
-                  />
-                  Berhenti komersial di {stationName(id)}
-                </label>
-              ))}
+              {path?.stations
+                .slice(1, -1)
+                .filter((id) => stations.some((st) => st.id === id))
+                .map((id) => (
+                  <label className="stop-choice" key={id}>
+                    <input
+                      type="checkbox"
+                      checked={!skippedStops.includes(id)}
+                      onChange={(e) =>
+                        setSkippedStops(
+                          e.target.checked
+                            ? skippedStops.filter((x) => x !== id)
+                            : [...skippedStops, id],
+                        )
+                      }
+                    />
+                    Berhenti komersial di {stationName(id)}
+                  </label>
+                ))}
               <p className="muted">
                 Preset Capital/Domestic belum memiliki klasifikasi stasiun
                 tervalidasi. Tinjau pemberhentian secara manual. Local
@@ -151,20 +157,25 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
             <>
               <label>
                 Nama layanan
-                <input value={name} onChange={(e) => setName(e.target.value)} />
+                <input value={name} readOnly aria-label="Nama relasi otomatis" />
               </label>
               <p className="muted">
-                Relasi milik perusahaan, dapat ditugaskan ke trainset lain.
-                Katalog saat ini memakai simpul koridor besar. Pilih
-                pemberhentian komersial pada tahap lintas; simpul lain tetap
-                dilalui tanpa dwell atau penjualan tiket.
+                Nama otomatis memakai kode stasiun. Relasi berlaku dua arah dan dapat dipakai oleh beberapa trainset; tidak perlu membuat relasi terpisah untuk perjalanan balik.
+                Stasiun besar, sedang, dan kecil dari data yang tersedia dapat
+                dipilih. Pilih pemberhentian komersial pada tahap lintas; simpul
+                lain tetap dilalui tanpa dwell atau penjualan tiket.
               </p>
             </>
           )}
           {stage === 3 && (
             <>
               <h2>{name}</h2>
-              <p>{path?.stations.map(stationName).join(" → ")}</p>
+              <p>
+                {path?.stations
+                  .filter((id) => stations.some((st) => st.id === id))
+                  .map(stationName)
+                  .join(" → ")}
+              </p>
               <p className="muted">
                 Draft dan pembukaan relasi gratis. TAC dibayar untuk setiap
                 perjalanan, setelah penugasan aktif. Tarif otomatis memakai
@@ -230,7 +241,11 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
         <Card title="Penugasan & forecast">
           <label>
             Trainset
-            <select value={tid} onChange={(e) => setTid(e.target.value)}>
+            <select
+              aria-label="Trainset"
+              value={tid}
+              onChange={(e) => setTid(e.target.value)}
+            >
               <option value="">Pilih trainset</option>
               {s.trainsets.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -241,7 +256,11 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
           </label>
           <label>
             Relasi
-            <select value={rid} onChange={(e) => setRid(e.target.value)}>
+            <select
+              aria-label="Relasi"
+              value={rid}
+              onChange={(e) => setRid(e.target.value)}
+            >
               <option value="">Pilih relasi</option>
               {s.services.map((r) => (
                 <option key={r.id} value={r.id}>
@@ -252,6 +271,20 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
           </label>
           {selectedR && (
             <>
+              <label>Arah perjalanan
+                <select aria-label="Arah perjalanan" value={String(reverse)} onChange={(e) => setReverse(e.target.value === "true")}>
+                  {[false, true].map((back) => <option key={String(back)} value={String(back)}>
+                    {stationName(selectedR.stations[back ? selectedR.stations.length - 1 : 0]!)} → {stationName(selectedR.stations[back ? 0 : selectedR.stations.length - 1]!)}
+                  </option>)}
+                </select>
+              </label>
+              <label>Mode penugasan
+                <select aria-label="Mode penugasan" value={String(roundTrip)} onChange={(e) => setRoundTrip(e.target.value === "true")}>
+                  <option value="true">PP otomatis berulang</option>
+                  <option value="false">Sekali jalan</option>
+                </select>
+              </label>
+              <p className="muted">Lokasi trainset: {selectedT ? stationName(selectedT.location) : "pilih trainset"}. Setelah tiba dan jeda selesai, pilih arah balik atau relasi lain dari stasiun itu.</p>
               {(["LX", "EX", "EC"] as CoreClass[])
                 .filter(
                   (c) => !selectedT || coreFormation(s, selectedT).seats[c] > 0,
@@ -322,26 +355,31 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
                 ))}
               <details>
                 <summary>Tarif antarstasiun · referensi OD</summary>
-                {selectedR.stations.flatMap((from, i) =>
-                  selectedR.stations.slice(i + 1).map((to) => {
-                    const j = selectedR.stations.indexOf(to),
-                      km = selectedR.segments
-                        .slice(i, j)
-                        .reduce(
-                          (v, id) =>
-                            v + tracks.find((t) => t.id === id)!.distanceKm,
-                          0,
+                {(selectedR.stops ?? selectedR.stations).flatMap(
+                  (from, stopIndex) =>
+                    (selectedR.stops ?? selectedR.stations)
+                      .slice(stopIndex + 1)
+                      .map((to) => {
+                        const i = selectedR.stations.indexOf(from),
+                          j = selectedR.stations.indexOf(to),
+                          km = selectedR.segments
+                            .slice(i, j)
+                            .reduce(
+                              (v, id) =>
+                                v + tracks.find((t) => t.id === id)!.distanceKm,
+                              0,
+                            );
+                        return (
+                          <p className="muted" key={`${from}:${to}`}>
+                            {stationName(from)} → {stationName(to)} · EC{" "}
+                            {money(
+                              (CORE_FARES.EC.boarding +
+                                CORE_FARES.EC.perKm * km) *
+                                selectedR.fares.EC,
+                            )}
+                          </p>
                         );
-                    return (
-                      <p className="muted" key={`${from}:${to}`}>
-                        {stationName(from)} → {stationName(to)} · EC{" "}
-                        {money(
-                          (CORE_FARES.EC.boarding + CORE_FARES.EC.perKm * km) *
-                            selectedR.fares.EC,
-                        )}
-                      </p>
-                    );
-                  }),
+                      }),
                 )}
               </details>
             </>
@@ -447,11 +485,11 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
               />
             </label>
           </div>
-          <button onClick={() => setOffset(Math.ceil(s.minute + 2) % cycle)}>
+          <button onClick={() => setOffset(Math.ceil(Math.max(s.minute + 2, selectedT?.readyAt ?? 0)) % cycle)}>
             Slot terdekat +2 menit game
           </button>
           <p className="muted">
-            PP otomatis, jeda terminus 60 menit. Jadwal berikutnya tidak dapat
+            PP otomatis memakai jeda terminus 60 menit. Sekali jalan selesai setelah satu dinas. Jadwal berikutnya tidak dapat
             melompati lokasi. Diagram tetap berjalan saat aplikasi ditutup.
           </p>
           <button
@@ -465,26 +503,27 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
                   serviceId: rid,
                   cycle,
                   offset,
-                  roundTrip: true,
+                  roundTrip,
+                  reverse,
                 },
                 "Diagram diaktifkan. Departure otomatis setelah readiness lolos.",
               )
             }
           >
-            Aktifkan diagram PP
+            {roundTrip ? "Aktifkan diagram PP" : "Jadwalkan sekali jalan"}
           </button>
         </Card>
       )}
       {!!s.services.length && (
-        <Card title="Diagram multi-relasi">
+        <Card title="Pola operasi trainset">
           <p className="muted">
             Satu identitas trainset dapat melayani beberapa nama KA. Akhir tiap
             dinas harus sama dengan awal berikutnya, termasuk batas siklus.
-            Pergantian relasi memerlukan fasilitas service dan jeda 30 menit; PP
+            Contoh: BD → GMR → BD → YK → BD. Untuk pola berulang, tambahkan perjalanan kembali sebelum siklus baru. Pergantian relasi memerlukan fasilitas service dan jeda 30 menit; PP
             60 menit.
           </p>
           <button onClick={() => setAdvanced(!advanced)}>
-            {advanced ? "Tutup editor chain" : "Susun chain lanjutan"}
+            {advanced ? "Tutup editor pola" : "Susun pola multi-relasi"}
           </button>
           {advanced && (
             <>
@@ -493,7 +532,7 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
                 pada penugasan di atas.
               </p>
               <button
-                disabled={!rid}
+                disabled={!rid || !tid}
                 onClick={() =>
                   setDuties([
                     ...duties,
@@ -504,7 +543,7 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
                 Tambah dinas pergi pada {when(offset)}
               </button>
               <button
-                disabled={!rid}
+                disabled={!rid || !tid}
                 onClick={() =>
                   setDuties([
                     ...duties,
@@ -514,14 +553,15 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
               >
                 Tambah dinas balik pada {when(offset)}
               </button>
-              {duties.map((d, i) => (
+              {selectedT && duties.map((d, i) => (
                 <div className="list-row" key={i}>
                   <div>
                     <b>
                       {s.services.find((r) => r.id === d.serviceId)?.name}{" "}
                       {d.reverse ? "←" : "→"}
                     </b>
-                    <small>{when(d.offset)}</small>
+                    <small>{when(d.offset)} → {when(forecastCore(s, tid, d.serviceId, d.reverse, d.offset).end)}</small>
+                    <small>{stationName(forecastCore(s, tid, d.serviceId, d.reverse, d.offset).origin)} → {stationName(forecastCore(s, tid, d.serviceId, d.reverse, d.offset).destination)}</small>
                   </div>
                   <button
                     aria-label={`Hapus dinas ${i + 1}`}
@@ -543,7 +583,7 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
                   )
                 }
               >
-                Validasi & aktifkan chain
+                Simpan & aktifkan pola
               </button>
             </>
           )}
@@ -560,7 +600,10 @@ export function Schedules({ state: s, act }: { state: CoreState; act: Act }) {
                   {p.reverse ? "← balik" : "→ pergi"}
                 </b>
                 <small>
-                  {when(p.nextAt)} · siklus {p.cycle / 60} jam
+                  {s.trainsets.find((t) => t.id === p.trainsetId)?.name} · {when(p.nextAt)} · {p.once ? "sekali jalan" : `siklus ${p.cycle / 60} jam`}
+                </small>
+                <small>
+                  {stationName(forecastCore(s, p.trainsetId, p.serviceId, p.reverse, p.nextAt).origin)} → {stationName(forecastCore(s, p.trainsetId, p.serviceId, p.reverse, p.nextAt).destination)} · estimasi tiba {when(forecastCore(s, p.trainsetId, p.serviceId, p.reverse, p.nextAt).end)}
                 </small>
               </div>
               <button
@@ -648,6 +691,7 @@ function TimetableGraph({ state: s }: { state: CoreState }) {
           const r = forecastCore(s, p.trainsetId, p.serviceId, p.reverse);
           const duration = r.end - r.start;
           let start = p.nextAt;
+          if (p.once && start < base) return null;
           while (start < base) start += p.cycle;
           if (start > base + 1440) return null;
           return (

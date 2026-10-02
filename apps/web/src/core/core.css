@@ -1154,3 +1154,355 @@
     animation: none;
   }
 }
+
+/* The operating sidebar attaches to the left edge and keeps navigation in place. */
+.operations-panel {
+  left: 0;
+  top: 84px;
+  bottom: 0;
+  width: 430px;
+  border-radius: 0;
+  border-left: 0;
+  border-top: 0;
+}
+.operations-panel[hidden] {
+  display: none;
+}
+.sidebar-nav {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  padding: 8px 6px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.core-game .sidebar-nav button {
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 2px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.core-game .sidebar-nav button.active {
+  color: #bd511f;
+  background: #fff0e5;
+}
+.navigation-trail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #fff8ee;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.core-game .navigation-trail button {
+  padding: 5px 8px;
+  min-height: 30px;
+  font-size: 10px;
+}
+.core-game .sidebar-expand {
+  position: absolute;
+  z-index: 600;
+  top: 112px;
+  left: 0;
+  border-radius: 0 9px 9px 0;
+  padding: 12px 5px;
+  background: white;
+  box-shadow: 2px 4px 16px #17354a25;
+}
+.fleet-views {
+  display: flex;
+  gap: 8px;
+  padding: 10px 15px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  flex-shrink: 0;
+}
+.fleet-views button {
+  flex: 1;
+}
+.core-game .fleet-views button.active {
+  background: #fff0e5;
+  color: #bd511f;
+  border-color: #edc4ab;
+}
+.depot-unit {
+  padding-bottom: 15px;
+  margin-bottom: 15px;
+  border-bottom: 1px solid var(--line);
+}
+.depot-unit:last-child {
+  border: 0;
+  margin-bottom: 0;
+}
+.depot-unit .inventory-row {
+  border: 0;
+}
+.game-dock {
+  bottom: 60px;
+  right: 18px;
+}
+.game-notice {
+  left: 445px;
+  right: 110px;
+}
+.core-game.sidebar-collapsed .game-notice {
+  left: 15px;
+}
+.feedback-stack {
+  right: 100px;
+}
+@media (max-width: 900px) {
+  .game-notice {
+    left: 445px;
+    font-size: 9px;
+  }
+}
+@media (max-width: 700px) {
+  .operations-panel {
+    left: 0;
+    top: 91px;
+    bottom: 0;
+    width: calc(100% - 64px);
+    border-radius: 0;
+  }
+  .sidebar-nav {
+    padding: 5px 3px;
+  }
+  .core-game .sidebar-nav button {
+    font-size: 8px;
+    gap: 4px;
+    padding: 7px 1px;
+  }
+  .core-game .sidebar-nav button svg {
+    width: 16px;
+  }
+  .game-dock {
+    right: 6px;
+    bottom: 55px;
+    padding: 4px;
+  }
+  .core-game .game-dock button {
+    width: 44px;
+    height: 52px;
+  }
+  .game-notice {
+    left: 0;
+    right: 64px;
+    bottom: 0;
+    max-height: none;
+    z-index: 570;
+    font-size: 9px;
+    border-radius: 0;
+    padding: 8px;
+  }
+  .core-game.sidebar-open .game-notice {
+    display: none;
+  }
+  .core-game.sidebar-open .map-caption {
+    display: none;
+  }
+  .core-game.sidebar-collapsed .game-notice {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    border-radius: 8px;
+  }
+  .navigation-trail {
+    padding: 6px 8px;
+  }
+  .fleet-views {
+    padding: 8px;
+    gap: 5px;
+  }
+  .fleet-views button {
+    font-size: 10px;
+  }
+  .feedback-stack {
+    top: 96px;
+    left: 6px;
+    right: 6px;
+    width: auto;
+  }
+}
+.rail-map-canvas {
+  position: absolute;
+  inset: 0;
+}
+.map-tools {
+  position: absolute;
+  z-index: 450;
+  right: 75px;
+  top: 102px;
+  background: #fffffff2;
+  border-radius: 10px;
+  padding: 12px;
+  width: 280px;
+  box-shadow: 0 5px 22px #17354a16;
+}
+.map-tools label {
+  margin: 0 0 8px;
+}
+.map-tools p {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  margin: 9px 0;
+}
+.map-tools small {
+  display: block;
+  font-size: 9px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.legend-line {
+  height: 3px;
+  width: 16px;
+  background: #e86b2c;
+  display: inline-block;
+}
+.legend-line.selected {
+  background: #2563eb;
+}
+.station-picker {
+  margin: 12px 0 18px;
+}
+.station-picker .station-select-label {
+  margin: 6px 0;
+}
+.station-picker > small {
+  display: block;
+  line-height: 1.5;
+}
+@media (max-width: 1050px) {
+  .map-tools {
+    width: 240px;
+    right: 70px;
+  }
+  .map-caption {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
+  .map-tools {
+    top: 107px;
+    right: 54px;
+    left: 42px;
+    width: auto;
+  }
+  .sidebar-open .map-tools {
+    display: none;
+  }
+  .sidebar-open .core-map .leaflet-control-zoom {
+    display: none;
+  }
+}
+.company-setup {
+  height: 100%;
+  overflow-y: auto;
+  display: grid;
+  align-items: start;
+  justify-items: center;
+  padding: 40px 18px;
+  background: radial-gradient(ellipse at top, #eef5e9, #dbe6ea);
+}
+.company-setup-card {
+  width: min(560px, 100%);
+  padding: 30px;
+  background: #fffef9;
+  border-radius: 18px;
+  box-shadow: 0 15px 60px #17354a20;
+}
+.company-setup-card > small,
+.mission-summary > small {
+  color: #c55b25;
+  letter-spacing: 1px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.company-setup-card h1 {
+  font-size: 30px;
+  margin: 15px 0;
+}
+.company-setup-card p {
+  font-size: 12px;
+  line-height: 1.65;
+  margin: 12px 0;
+}
+.depot-city-options {
+  display: grid;
+  gap: 8px;
+  max-height: 340px;
+  overflow-y: auto;
+  margin: 15px 0;
+}
+.core-game .depot-city-options button {
+  justify-content: flex-start;
+  padding: 12px;
+  text-align: left;
+}
+.depot-city-options button span {
+  flex: 1;
+}
+.depot-city-options small {
+  display: block;
+  font-weight: 400;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.core-game .depot-city-options button.selected {
+  background: #fff0e5;
+  border-color: #e86b2c;
+}
+.setup-budget {
+  padding: 12px;
+  background: #edf5ef;
+  border-radius: 10px;
+}
+.setup-budget > div {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 11px;
+}
+.mission-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.mission-row > div {
+  flex: 1;
+  min-width: 0;
+}
+.mission-row b {
+  display: block;
+  font-size: 11px;
+}
+.mission-row small {
+  display: block;
+  font-size: 10px;
+  color: #168568;
+  margin-top: 4px;
+}
+@media (max-width: 700px) {
+  .company-setup {
+    padding: 18px 10px;
+  }
+  .company-setup-card {
+    padding: 20px;
+  }
+  .company-setup-card h1 {
+    font-size: 25px;
+  }
+  .setup-budget > div {
+    flex-wrap: wrap;
+  }
+}

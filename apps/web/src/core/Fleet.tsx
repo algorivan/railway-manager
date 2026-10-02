@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   Wrench,
 } from "lucide-react";
-import { JAVA_STATION_CATALOG as stations } from "@railway/game-data";
+import { CORE_SELECTABLE_STATIONS as stations } from "@railway/game-data";
 import {
   coreProduct,
   coreFormation,
@@ -22,15 +22,20 @@ import {
 } from "@railway/simulation";
 import { Asset, Card, remaining, type Act, type Screen } from "./presentation";
 import { RunReport } from "./RunReport";
+import { Depot } from "./Depot";
 
 export function Fleet({
   state: s,
   act,
   go,
+  view,
+  setView,
 }: {
   state: CoreState;
   act: Act;
   go: (screen: Screen) => void;
+  view: "operations" | "depot";
+  setView: (view: "operations" | "depot") => void;
 }) {
   const [tab, setTab] = useState("parked");
   const [selected, setSelected] = useState<string>();
@@ -52,197 +57,200 @@ export function Fleet({
   ];
   return (
     <>
-      <div className="panel-scroll">
-        <div className="toolbar">
-          <button
-            className="primary"
-            onClick={() => {
-              setSelected(undefined);
-              setEditing(!editing);
-            }}
-          >
-            <Plus size={15} /> Buat trainset
-          </button>
-          <button onClick={() => go("schedule")}>
-            Relasi <ArrowRight size={14} />
-          </button>
-        </div>
-        {editing ? (
-          <Formation
-            state={s}
-            trainset={t}
-            act={act}
-            close={() => setEditing(false)}
-          />
-        ) : t ? (
-          <>
-            <button
-              className="back-link"
-              onClick={() => setSelected(undefined)}
-            >
-              <ArrowLeft size={14} /> Kembali ke daftar
-            </button>
-            <TrainDetail
-              state={s}
-              trainset={t}
-              act={act}
-              edit={() => setEditing(true)}
-              go={go}
-            />
-          </>
-        ) : (
-          <>
-            {!s.trainsets.length && (
-              <Card className="starter-card">
-                <small>LANGKAH PERTAMA</small>
-                <h2>
-                  Satu loko.
-                  <br />
-                  Empat kereta.
-                  <br />
-                  <span>Banyak kemungkinan.</span>
-                </h2>
-                {!s.orders.length && (
-                  <label>
-                    Hub awal
-                    <select
-                      value={s.hub}
-                      onChange={(e) =>
-                        act(
-                          { type: "hub", station: e.target.value },
-                          "Hub awal dipilih.",
-                        )
-                      }
-                    >
-                      {stations.map((st) => (
-                        <option key={st.id} value={st.id}>
-                          {stationName(st.id)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                <Asset id="cc201" />
-                <p>
-                  Bangun trainset pertama dengan 424 kursi Ekonomi dan sumber
-                  listrik terpisah.
-                </p>
-                <button className="primary" onClick={() => go("market")}>
-                  Pilih sarana starter <ArrowRight size={16} />
-                </button>
-                <p className="muted">
-                  Modal mencakup harga paket baru + Rp150 juta cadangan operasi
-                  sementara.
-                </p>
-              </Card>
-            )}
-            {s.trainsets
-              .filter((x) => status(x) === tab)
-              .map((x) => (
-                <button
-                  className="train-row"
-                  key={x.id}
-                  onClick={() => setSelected(x.id)}
-                >
-                  <Asset
-                    id={s.units.find((u) => u.id === x.units[0])!.productId}
-                  />
-                  <div>
-                    <small>{x.id.slice(0, 8).toUpperCase()}</small>
-                    <b>{x.name}</b>
-                    <span>
-                      {stationName(x.location)} · {coreFormation(s, x).capacity}{" "}
-                      kursi
-                    </span>
-                  </div>
-                  <ArrowRight size={16} />
-                </button>
-              ))}
-            {!!s.trainsets.length &&
-              !s.trainsets.some((x) => status(x) === tab) && (
-                <div className="empty">Tidak ada trainset pada status ini.</div>
-              )}
-            {tab === "pending" && (
-              <Card title="Pesanan sarana">
-                {s.orders
-                  .filter((o) => !o.accepted)
-                  .map((o) => (
-                    <div className="list-row" key={o.id}>
-                      <div>
-                        <b>
-                          {o.quantity} × {coreProduct(o.productId).name}
-                        </b>
-                        <small>
-                          {o.due <= s.minute
-                            ? "Siap acceptance"
-                            : remaining(o.due, s)}
-                        </small>
-                      </div>
-                      <button
-                        disabled={o.due > s.minute}
-                        onClick={() => act({ type: "accept", orderId: o.id })}
-                      >
-                        Terima
-                      </button>
-                    </div>
-                  ))}
-                {!s.orders.some((o) => !o.accepted) && (
-                  <p className="muted">Belum ada pesanan dalam pengantaran.</p>
-                )}
-              </Card>
-            )}
-          </>
-        )}
-        <Card title={`Inventori · ${s.units.length} unit`}>
-          <p className="muted">
-            Unit tersedia, nomor inventori, kondisi dan lokasi tetap terpisah
-            dari trainset.
-          </p>
-          {s.units.map((u) => (
-            <div className="inventory-row" key={u.id}>
-              <Asset id={u.productId} />
-              <div>
-                <b>{coreProduct(u.productId).name}</b>
-                <small>
-                  #{u.id.slice(-8)} · {stationName(u.location)}
-                </small>
-                <small>
-                  {u.condition.toFixed(1)}% kondisi · {Math.round(u.km)} km · P1{" "}
-                  {remaining(u.nextService, s)}
-                </small>
-              </div>
-              <span className={`pill ${u.job ? "warn" : "good"}`}>
-                {u.job
-                  ? "Pending"
-                  : s.trainsets.some((x) => x.units.includes(u.id))
-                    ? "Assigned"
-                    : "Available"}
-              </span>
-            </div>
-          ))}
-        </Card>
+      <div className="fleet-views" aria-label="Tampilan armada">
+        <button
+          className={view === "operations" ? "active" : ""}
+          onClick={() => setView("operations")}
+        >
+          Trainset & dinas
+        </button>
+        <button
+          className={view === "depot" ? "active" : ""}
+          onClick={() => setView("depot")}
+        >
+          Inventori & depo
+        </button>
       </div>
-      <footer className="status-tabs">
-        {tabs.map((item) => (
-          <button
-            key={item.id}
-            className={tab === item.id ? "active" : ""}
-            onClick={() => {
-              setTab(item.id);
-              setSelected(undefined);
-              setEditing(false);
-            }}
-          >
-            <b>
-              {s.trainsets.filter((x) => status(x) === item.id).length +
-                (item.id === "pending"
-                  ? s.orders.filter((o) => !o.accepted).length
-                  : 0)}
-            </b>
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </footer>
+      {view === "depot" ? (
+        <Depot state={s} act={act} />
+      ) : (
+        <>
+          <div className="panel-scroll">
+            <div className="toolbar">
+              <button
+                className="primary"
+                onClick={() => {
+                  setSelected(undefined);
+                  setEditing(!editing);
+                }}
+              >
+                <Plus size={15} /> Buat trainset
+              </button>
+              <button onClick={() => go("schedule")}>
+                Relasi <ArrowRight size={14} />
+              </button>
+            </div>
+            {editing ? (
+              <Formation
+                state={s}
+                trainset={t}
+                act={act}
+                close={() => setEditing(false)}
+              />
+            ) : t ? (
+              <>
+                <button
+                  className="back-link"
+                  onClick={() => setSelected(undefined)}
+                >
+                  <ArrowLeft size={14} /> Kembali ke daftar
+                </button>
+                <TrainDetail
+                  state={s}
+                  trainset={t}
+                  act={act}
+                  edit={() => setEditing(true)}
+                  go={go}
+                />
+              </>
+            ) : (
+              <>
+                {!s.trainsets.length && (
+                  <Card className="starter-card">
+                    <small>LANGKAH PERTAMA</small>
+                    <h2>
+                      Satu loko.
+                      <br />
+                      Empat kereta.
+                      <br />
+                      <span>Banyak kemungkinan.</span>
+                    </h2>
+                    {!s.orders.length && (
+                      <label>
+                        Hub awal
+                        <select
+                          disabled={!!s.companyStarted}
+                          value={s.hub}
+                          onChange={(e) =>
+                            act(
+                              { type: "hub", station: e.target.value },
+                              "Hub awal dipilih.",
+                            )
+                          }
+                        >
+                          {stations.map((st) => (
+                            <option
+                              key={st.id}
+                              value={st.id}
+                              disabled={!st.connected}
+                            >
+                              {stationName(st.id)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    <Asset id="cc201" />
+                    <p>
+                      Bangun trainset pertama dengan 424 kursi Ekonomi dan
+                      sumber listrik terpisah.
+                    </p>
+                    <button className="primary" onClick={() => go("market")}>
+                      Pilih sarana starter <ArrowRight size={16} />
+                    </button>
+                    <p className="muted">
+                      Modal mencakup harga paket baru + Rp150 juta cadangan
+                      operasi sementara.
+                    </p>
+                  </Card>
+                )}
+                {s.trainsets
+                  .filter((x) => status(x) === tab)
+                  .map((x) => (
+                    <button
+                      className="train-row"
+                      key={x.id}
+                      onClick={() => setSelected(x.id)}
+                    >
+                      <Asset
+                        id={s.units.find((u) => u.id === x.units[0])!.productId}
+                      />
+                      <div>
+                        <small>{x.id.slice(0, 8).toUpperCase()}</small>
+                        <b>{x.name}</b>
+                        <span>
+                          {stationName(x.location)} ·{" "}
+                          {coreFormation(s, x).capacity} kursi
+                        </span>
+                      </div>
+                      <ArrowRight size={16} />
+                    </button>
+                  ))}
+                {!!s.trainsets.length &&
+                  !s.trainsets.some((x) => status(x) === tab) && (
+                    <div className="empty">
+                      Tidak ada trainset pada status ini.
+                    </div>
+                  )}
+                {tab === "pending" && (
+                  <Card title="Pesanan sarana">
+                    {s.orders
+                      .filter((o) => !o.accepted)
+                      .map((o) => (
+                        <div className="list-row" key={o.id}>
+                          <div>
+                            <b>
+                              {o.quantity} × {coreProduct(o.productId).name}
+                            </b>
+                            <small>
+                              {o.due <= s.minute
+                                ? "Siap acceptance"
+                                : remaining(o.due, s)}
+                            </small>
+                          </div>
+                          <button
+                            disabled={o.due > s.minute}
+                            onClick={() =>
+                              act({ type: "accept", orderId: o.id })
+                            }
+                          >
+                            Terima
+                          </button>
+                        </div>
+                      ))}
+                    {!s.orders.some((o) => !o.accepted) && (
+                      <p className="muted">
+                        Belum ada pesanan dalam pengantaran.
+                      </p>
+                    )}
+                  </Card>
+                )}
+              </>
+            )}
+          </div>
+          <footer className="status-tabs">
+            {tabs.map((item) => (
+              <button
+                key={item.id}
+                className={tab === item.id ? "active" : ""}
+                onClick={() => {
+                  setTab(item.id);
+                  setSelected(undefined);
+                  setEditing(false);
+                }}
+              >
+                <b>
+                  {s.trainsets.filter((x) => status(x) === item.id).length +
+                    (item.id === "pending"
+                      ? s.orders.filter((o) => !o.accepted).length
+                      : 0)}
+                </b>
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </footer>
+        </>
+      )}
     </>
   );
 }

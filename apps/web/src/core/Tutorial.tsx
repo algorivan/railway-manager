@@ -5,18 +5,25 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { coreFormation, type CoreState } from "@railway/simulation";
-import { Card, type Screen } from "./presentation";
+import {
+  coreFormation,
+  coreMissionStatus,
+  coreLevel,
+  type CoreState,
+} from "@railway/simulation";
+import { Card, compact, type Act, type Screen } from "./presentation";
 
 export const TUTORIAL_KEY = "railway-manager-tutorial-v1";
 export function Tutorial({
   state: s,
+  act,
   go,
   sound,
   toggleSound,
   onContinue,
 }: {
   state: CoreState;
+  act: Act;
   go: (screen: Screen) => void;
   sound: boolean;
   toggleSound: () => void;
@@ -46,7 +53,7 @@ export function Tutorial({
       title: "Pilih hub & beli sarana",
       screen: "market",
       done: orderedStarter || acceptedStarter,
-      text: "Pilih hub di Armada sebelum memesan. Di Pasar, pesan 1 CC201, 4 Ekonomi Standar dan 1 pembangkit di dipo yang sama. Paket starter tersedia langsung; pesanan berikutnya perlu waktu pengantaran.",
+      text: "Hub pertama sudah dipilih saat pendirian depo. Di Pasar, pesan 1 CC201, 4 Ekonomi Standar dan 1 pembangkit di dipo yang sama. Paket starter tersedia langsung; pesanan berikutnya perlu waktu pengantaran.",
     },
     {
       title: "Terima pesanan",
@@ -74,13 +81,13 @@ export function Tutorial({
       title: "Buat relasi & tinjau tarif",
       screen: "schedule",
       done: s.services.length > 0,
-      text: "Tekan Buat relasi di Jadwal. Mulai dari hub ke stasiun tetangga pada lintas terbuka. Ikuti tiga tahap lintas, layanan dan tinjauan. Periksa tarif serta proyeksi penumpang dan biaya.",
+      text: "Tekan Buat relasi di Jadwal. Mulai dari hub ke stasiun tetangga pada lintas terbuka. Nama relasi otomatis memakai kode stasiun awal–akhir dan bisa digunakan dua arah. Ikuti tiga tahap lintas, layanan dan tinjauan. Periksa tarif serta proyeksi penumpang dan biaya.",
     },
     {
       title: "Aktifkan jadwal pertama",
       screen: "schedule",
       done: s.plans.some((p) => p.active) || s.runs.length > 0,
-      text: "Pilih trainset dan relasi. Tinjau kesiapan dan preview PP, lalu atur siklus serta jam keberangkatan. Perbaiki semua alasan belum siap sebelum mengaktifkan. Jadwal aktif menunggu waktu keberangkatan, bukan langsung berangkat.",
+      text: "Pilih trainset, relasi dan arah sesuai posisi kereta. Pilih sekali jalan untuk penugasan manual setelah tiba, PP otomatis, atau susun pola operasi multi-relasi yang kembali ke asal pada akhir siklus. Tinjau kesiapan dan preview PP, lalu atur siklus serta jam keberangkatan. Perbaiki semua alasan belum siap sebelum mengaktifkan. Jadwal aktif menunggu waktu keberangkatan, bukan langsung berangkat.",
     },
     {
       title: "Pantau dinas & hasil",
@@ -89,10 +96,63 @@ export function Tutorial({
       text: "Pantau tab Dalam perjalanan di Armada dan posisi di Peta. Jika dinas tertahan, baca alasannya lalu perbaiki fuel atau kesiapan. Setelah selesai, tinjau kontribusi di Kantor dan ekspor save sebagai cadangan.",
     },
   ];
+  const missions = coreMissionStatus(s);
+  const level = coreLevel(s);
   const count = steps.filter((step) => step.done).length;
   const next = steps.findIndex((step) => !step.done);
   return (
     <div className="panel-scroll tutorial-content">
+      <Card className="mission-summary">
+        <small>MISI PERUSAHAAN</small>
+        <h2>
+          Level {level.level} · {level.xp} XP
+        </h2>
+        <div
+          className="tutorial-progress"
+          role="progressbar"
+          aria-label="XP menuju level berikutnya"
+          aria-valuenow={level.inLevel}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <span style={{ width: `${level.inLevel}%` }} />
+        </div>
+        <p>
+          {level.nextLevelAt - level.xp} XP menuju level berikutnya. Hadiah awal
+          hingga Rp590 jt untuk modal operasi; setiap misi dibayar sekali.
+        </p>
+        {!s.progression && (
+          <button
+            className="primary"
+            onClick={() => act({ type: "enableMissions" })}
+          >
+            Aktifkan misi & hadiah untuk perusahaan ini
+          </button>
+        )}
+        {missions.map((mission) => (
+          <div className="mission-row" key={mission.id}>
+            <div>
+              <b>{mission.title}</b>
+              <small>
+                +{mission.xp} XP · +{compact(mission.cash)}
+              </small>
+            </div>
+            {mission.completed ? (
+              <span className="pill good">Hadiah diterima</span>
+            ) : (
+              <button onClick={() => go(mission.screen)}>
+                {mission.eligible ? "Aktifkan misi" : "Kerjakan"}
+                <ArrowRight size={13} />
+              </button>
+            )}
+          </div>
+        ))}
+        <p className="muted">
+          Reward masuk otomatis ketika tujuan tercapai. XP tidak didapat dari
+          membuka menu. Level menandai progres; kesiapan, biaya dan hak lintas
+          tetap berlaku.
+        </p>
+      </Card>
       <Card className="starter-card">
         <small>PANDUAN OPERATOR BARU</small>
         <h2>Dari dipo ke dinas pertama.</h2>

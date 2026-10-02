@@ -4,6 +4,8 @@ import {
   applyCoreAction as apply,
   catchUpCore,
   coreFormation,
+  coreServiceName,
+  forecastCore,
   coreCrewNeeds,
   createCoreState,
   fuelQuote,
@@ -79,6 +81,56 @@ const at = (s: CoreState, minute: number) =>
   catchUpCore(s, epoch + ((minute - 420) / 1.5) * 60000);
 
 describe("v7 browser operations", () => {
+  it("automatically names reusable relations from station codes", () => {
+    const s = setup();
+    const next = apply(s, { type: "service", origin: s.hub, destination: "STN_GMR_GAMBIR", category: "Custom" }, "auto-name", epoch);
+    expect(next.services.at(-1)!.name).toBe(coreServiceName(s.hub, "STN_GMR_GAMBIR"));
+    expect(next.services.at(-1)!.name).toBe("BD – GMR");
+  });
+  it("runs once each way on the same relation and keeps location and turnaround across reload", () => {
+    let s = operating();
+    const tid = s.trainsets[0]!.id, rid = s.services[0]!.id;
+    s = apply(s, { type: "disableDiagram", trainsetId: tid }, "pause-pp", epoch);
+    const schedule = (reverse: boolean, offset: number, id: string) => apply(s, { type: "schedule", trainsetId: tid, serviceId: rid, reverse, offset, cycle: 1440, roundTrip: false }, id, epoch);
+    expect(() => schedule(true, 422, "wrong-direction")).toThrow("pilih arah");
+    s = schedule(false, 422, "out-once");
+    expect(() => schedule(false, 423, "duplicate")).toThrow("diagram sebelumnya");
+    const end = forecastCore(s, tid, rid, false, 422).end;
+    s = at(s, end + 1);
+    expect(s.trainsets[0]!.location).toBe("STN_GMR_GAMBIR");
+    expect(s.plans.some((p) => p.active)).toBe(false);
+    expect(() => schedule(true, Math.ceil(end + 2), "early")).toThrow("Jeda persiapan");
+    const departure = Math.ceil(s.trainsets[0]!.readyAt + 1);
+    s = schedule(true, departure, "return-once");
+    s = restoreCore(serializeCore(s))!;
+    expect(s.plans.at(-1)!.once).toBe(true);
+    s = at(s, forecastCore(s, tid, rid, true, departure).end + 1);
+    expect(s.trainsets[0]!.location).toBe(s.hub);
+    expect(s.runs.filter((r) => r.status === "completed")).toHaveLength(2);
+    s = at(s, s.minute + 1440);
+    expect(s.runs).toHaveLength(2);
+  });
+  it("saves one trainset pattern across BD–GMR and BD–YK without teleporting or overlaps", () => {
+    let s = setup();
+    s = apply(s, { type: "service", origin: s.hub, destination: "STN_YK_YOGYAKARTA", category: "Custom" }, "bd-yk", epoch);
+    const tid = s.trainsets[0]!.id, rid = s.services[0]!.id;
+    const duties = [{ serviceId: rid, reverse: false, offset: 422 }];
+    const add = (serviceId: string, reverse: boolean, rest: number) => {
+      const last = duties.at(-1)!;
+      const arrival = forecastCore(s, tid, last.serviceId, last.reverse, last.offset).end;
+      duties.push({ serviceId, reverse, offset: Math.ceil(arrival + rest) });
+    };
+    add(rid, true, 60);
+    add("bd-yk", false, 30);
+    const open = [...duties];
+    add("bd-yk", true, 60);
+    const action = { type: "diagram" as const, trainsetId: tid, cycle: 2880, duties };
+    const saved = restoreCore(serializeCore(apply(s, action, "pattern", epoch)))!;
+    expect(saved.plans.filter((p) => p.active)).toHaveLength(4);
+    expect(new Set(saved.plans.map((p) => p.trainsetId)).size).toBe(1);
+    expect(() => apply(s, { ...action, duties: open }, "open", epoch)).toThrow("Lokasi");
+    expect(() => apply(s, { ...action, duties: duties.map((d, i) => i === 2 ? { ...d, offset: duties[1]!.offset + 1 } : d) }, "overlap", epoch)).toThrow("jeda");
+  });
   it("distinguishes passed stations from commercial stops and does not add dwell to a pass", () => {
     let s = setup();
     s.access.push("SEG_GMR_CN");

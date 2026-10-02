@@ -32,6 +32,6 @@ The app saves to browser storage. Use **Kantor → Ekspor save / Impor save** to
 5. In Jadwal, create a reusable service, choose the trainset and service, preview one round trip, and activate a legal 24/48/72-hour diagram. Departure is automatic after readiness checks. Held departures require confirmation after recovery.
 6. Review contribution, segment-weighted occupancy, fuel, maintenance and expansion choices after operations.
 
-The network uses seven catalog stations and nine coarse corridors. Maps and reservations are explicitly schematic; detailed Gapeka 2025 validation is deferred by agreement. OpenStreetMap basemap tiles require access to `tile.openstreetmap.org`; the corridor overlay remains available without them.
+The current shipped network still uses seven catalog stations and nine schematic corridors; the national OpenStreetMap import is pending network access. An OSM topology/geometry importer, searchable station picker and rail-polyline train positions are ready for the snapshot. New train motion includes acceleration, braking and section caps; new browser games start with depot/hub setup and one-time XP/cash missions. See [mapping and onboarding details](docs/OPERATING_MAP_AND_ONBOARDING.md). Basemap tiles require `tile.openstreetmap.org`; overlays and gameplay remain available without them.
 
 See [implementation scope and balance](docs/CORE_V7_IMPLEMENTATION.md) for capabilities and limitations. The previous demo components remain in the repository as reference; `apps/web/src/main.tsx` now starts the v7 app.

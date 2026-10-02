@@ -11,4 +11,6 @@ export * from './catalog/tracks.js';
 export * from './catalog/rolling-stock.js';
 export * from './catalog/gameplay-v7.js';
 export * from './loader/catalog-loader.js';
+export * from './catalog/operating-network.js';
+export * from './catalog/company-onboarding.js';
 //# sourceMappingURL=index.d.ts.map

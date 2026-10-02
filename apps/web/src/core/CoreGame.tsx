@@ -6,20 +6,28 @@ import {
   Store,
   Building2,
   ArrowRight,
-  X,
   AlertTriangle,
   BookOpen,
   Volume2,
   VolumeX,
+  ChevronLeft,
+  ChevronRight,
+  ArrowLeft,
+  Warehouse,
 } from "lucide-react";
 import {
-  JAVA_STATION_CATALOG as stations,
-  JAVA_TRACK_CORRIDOR_SEGMENTS as tracks,
+  CORE_SELECTABLE_STATIONS as stations,
+  CORE_ROUTING_TRACKS as tracks,
+  CORE_NETWORK_SOURCE,
+  operatingTrackAccessible,
+  depotContractPrice,
 } from "@railway/game-data";
 import {
   applyCoreAction,
   catchUpCore,
   createCoreState,
+  createCompanyDraft,
+  coreLevel,
   pace,
   restoreCore,
   serializeCore,
@@ -40,6 +48,7 @@ import {
   writePreference,
 } from "./feedback";
 import { Tutorial, TUTORIAL_KEY } from "./Tutorial";
+import { CompanySetup } from "./CompanySetup";
 import "./core.css";
 const SAVE = "railway-manager-v7";
 
@@ -48,7 +57,7 @@ export default function CoreGame() {
   const loadError = useRef("");
   const [state, setState] = useState<CoreState>(() => {
     const saved = localStorage.getItem(SAVE);
-    if (!saved) return createCoreState(Date.now());
+    if (!saved) return createCompanyDraft(Date.now());
     try {
       return catchUpCore(restoreCore(saved), Date.now());
     } catch {
@@ -63,6 +72,13 @@ export default function CoreGame() {
     readPreference(TUTORIAL_KEY) ? "fleet" : "tutorial",
   );
   const [open, setOpen] = useState(true);
+  const [fleetView, setFleetView] = useState<"operations" | "depot">(
+    "operations",
+  );
+  const [history, setHistory] = useState<
+    { screen: Screen; view: "operations" | "depot" }[]
+  >([]);
+  const [tutorialJourney, setTutorialJourney] = useState(false);
   const [notice, setNotice] = useState(
     loadError.current ||
       "Mulai dari sarana kecil. Bangun layanan yang bisa Anda andalkan.",
@@ -110,7 +126,23 @@ export default function CoreGame() {
   useEffect(() => {
     const timer = setInterval(() => {
       try {
-        const next = catchUpCore(stateRef.current, Date.now());
+        const before = stateRef.current;
+        const next = catchUpCore(before, Date.now());
+        const earnedXP =
+          (next.progression?.xp ?? 0) - (before.progression?.xp ?? 0);
+        if (earnedXP > 0) {
+          const cash = next.ledger
+            .filter(
+              (entry) =>
+                entry.id.startsWith("mission:") &&
+                !before.ledger.some((old) => old.id === entry.id),
+            )
+            .reduce((sum, entry) => sum + entry.cash, 0);
+          const message = `Misi selesai! +${earnedXP} XP · +${compact(cash)} modal operasi.`;
+          setNotice(message);
+          setError(false);
+          feedback.notify(message, false, false);
+        }
         stateRef.current = next;
         setState(next);
       } catch (e) {
@@ -131,9 +163,25 @@ export default function CoreGame() {
       setError(true);
     }
   }, [state, saveBlocked, ownsSave]);
-  const go = (target: Screen) => {
+  const go = (target: Screen, view: "operations" | "depot" = "operations") => {
+    if (target !== screen || (target === "fleet" && view !== fleetView)) {
+      setHistory((items) => [...items.slice(-19), { screen, view: fleetView }]);
+    }
+    if (screen === "tutorial" && target !== "tutorial")
+      setTutorialJourney(true);
+    if (target === "tutorial") setTutorialJourney(false);
     setScreen(target);
+    setFleetView(view);
     setOpen(true);
+  };
+  const back = () => {
+    const previous = history.at(-1);
+    if (!previous) return;
+    setHistory((items) => items.slice(0, -1));
+    setScreen(previous.screen);
+    setFleetView(previous.view);
+    setOpen(true);
+    if (previous.screen === "tutorial") setTutorialJourney(false);
   };
   const notify = (message: string, failed = false) => {
     setNotice(message);
@@ -154,10 +202,24 @@ export default function CoreGame() {
       const id =
         recent && now - recent.at < 1000 ? recent.id : crypto.randomUUID();
       recentActions.current.set(key, { id, at: now });
+      const before = stateRef.current;
+      const beforeXP = before.progression?.xp ?? 0;
       const next = applyCoreAction(stateRef.current, action, id, now);
       stateRef.current = next;
       setState(next);
-      notify(message);
+      const earnedXP = (next.progression?.xp ?? 0) - beforeXP;
+      const cashReward = next.ledger
+        .filter(
+          (entry) =>
+            entry.id.startsWith("mission:") &&
+            !before.ledger.some((old) => old.id === entry.id),
+        )
+        .reduce((sum, entry) => sum + entry.cash, 0);
+      notify(
+        earnedXP > 0
+          ? `${message} Misi selesai! +${earnedXP} XP · +${compact(cashReward)} modal operasi.`
+          : message,
+      );
       return true;
     } catch (e) {
       notify((e as Error).message, true);
@@ -210,8 +272,23 @@ export default function CoreGame() {
     { id: "office", label: "Kantor", icon: Building2 },
     { id: "tutorial", label: "Tutorial", icon: BookOpen },
   ] as const;
+  const level = coreLevel(state);
+  if (state.companyStarted === false && !saveBlocked)
+    return (
+      <main className="core-game">
+        <CompanySetup
+          state={state}
+          act={act}
+          ready={ownsSave}
+          onStarted={() => go("tutorial")}
+        />
+        <Feedback notices={feedback.notices} dismiss={feedback.dismiss} />
+      </main>
+    );
   return (
-    <main className="core-game">
+    <main
+      className={`core-game ${open ? "sidebar-open" : "sidebar-collapsed"}`}
+    >
       <CoreMap state={state} />
       <header className="game-header">
         <div className="brand">
@@ -222,7 +299,10 @@ export default function CoreGame() {
             <b>
               RAILWAY<span> MANAGER</span>
             </b>
-            <small>Perusahaan Anda · {stationName(state.hub)}</small>
+            <small>
+              Perusahaan Anda · {stationName(state.hub)} · Lv {level.level} ·{" "}
+              {level.xp} XP
+            </small>
           </div>
         </div>
         <div className="header-metrics">
@@ -251,66 +331,114 @@ export default function CoreGame() {
         <span className="live-dot" /> DUNIA OPERATOR TUNGGAL{" "}
         <span>· Hari {Math.floor(state.minute / 1440) + 1}</span>
       </div>
-      {open && (
-        <aside className="operations-panel">
-          <div className="panel-heading">
-            <div>
-              <small>RUANG OPERASI</small>
-              <h1>
-                {screen === "map"
-                  ? "Jaringan Jawa"
-                  : screen === "fleet"
-                    ? "Armada & operasi"
-                    : screen === "schedule"
-                      ? "Diagram dinas"
-                      : screen === "market"
-                        ? "Pasar sarana"
-                        : screen === "tutorial"
-                          ? "Panduan bermain"
-                          : "Kantor perusahaan"}
-              </h1>
-            </div>
+      <aside
+        id="operations-sidebar"
+        className="operations-panel"
+        hidden={!open}
+      >
+        <nav className="sidebar-nav" aria-label="Menu utama">
+          {nav.map(({ id, label, icon: Icon }) => (
             <button
-              className="icon-button"
-              aria-label="Tutup panel"
-              onClick={() => setOpen(false)}
+              key={id}
+              className={screen === id ? "active" : ""}
+              aria-label={label}
+              aria-current={screen === id ? "page" : undefined}
+              onClick={() => go(id, id === "fleet" ? "depot" : "operations")}
             >
-              <X size={20} />
+              <Icon size={18} />
+              <span>{label}</span>
             </button>
+          ))}
+        </nav>
+        {(history.length > 0 || (tutorialJourney && screen !== "tutorial")) && (
+          <div className="navigation-trail">
+            {history.length > 0 && (
+              <button onClick={back}>
+                <ArrowLeft size={14} /> Kembali
+              </button>
+            )}
+            {tutorialJourney && screen !== "tutorial" && (
+              <button onClick={() => go("tutorial")}>
+                <BookOpen size={14} /> Kembali ke tutorial
+              </button>
+            )}
           </div>
-          {screen === "fleet" && <Fleet state={state} act={act} go={go} />}
-          {screen === "schedule" && <Schedules state={state} act={act} />}
-          {screen === "market" && <Market state={state} act={act} />}
-          {screen === "office" && (
-            <Office
-              state={state}
-              act={act}
-              exportSave={exportSave}
-              importSave={importSave}
-              notify={notify}
-            />
-          )}
-          {screen === "tutorial" && (
-            <Tutorial
-              state={state}
-              go={go}
-              sound={feedback.sound}
-              toggleSound={feedback.toggleSound}
-              onContinue={() => {
-                writePreference(TUTORIAL_KEY, "seen");
-                go("fleet");
-              }}
-            />
-          )}
-          {screen === "map" && (
-            <div className="panel-scroll">
-              <Card title="Jaringan yang terhubung">
-                <p className="muted">
-                  Koridor dari katalog repository. Garis adalah skema
-                  konektivitas; belum merupakan dataset blok Gapeka 2025
-                  tervalidasi.
-                </p>
-                {tracks.map((e) => (
+        )}
+        <div className="panel-heading">
+          <div>
+            <small>RUANG OPERASI</small>
+            <h1>
+              {screen === "map"
+                ? "Jaringan operasi"
+                : screen === "fleet"
+                  ? "Armada & operasi"
+                  : screen === "schedule"
+                    ? "Diagram dinas"
+                    : screen === "market"
+                      ? "Pasar sarana"
+                      : screen === "tutorial"
+                        ? "Panduan bermain"
+                        : "Kantor perusahaan"}
+            </h1>
+          </div>
+          <button
+            className="icon-button"
+            aria-label="Ciutkan sidebar"
+            onClick={() => setOpen(false)}
+          >
+            <ChevronLeft size={20} />
+          </button>
+        </div>
+        {screen === "fleet" && (
+          <Fleet
+            state={state}
+            act={act}
+            go={go}
+            view={fleetView}
+            setView={setFleetView}
+          />
+        )}
+        {screen === "schedule" && <Schedules state={state} act={act} />}
+        {screen === "market" && <Market state={state} act={act} />}
+        {screen === "office" && (
+          <Office
+            state={state}
+            act={act}
+            exportSave={exportSave}
+            importSave={importSave}
+            notify={notify}
+          />
+        )}
+        {screen === "tutorial" && (
+          <Tutorial
+            state={state}
+            act={act}
+            go={go}
+            sound={feedback.sound}
+            toggleSound={feedback.toggleSound}
+            onContinue={() => {
+              writePreference(TUTORIAL_KEY, "seen");
+              go("fleet");
+              setTutorialJourney(false);
+            }}
+          />
+        )}
+        {screen === "map" && (
+          <div className="panel-scroll">
+            <Card title="Jaringan yang terhubung">
+              <p className="muted">
+                {CORE_NETWORK_SOURCE.importedAt
+                  ? `Geometri jalur dari OpenStreetMap. ${CORE_NETWORK_SOURCE.importedStationCount} stasiun terimpor; kelas, peron dan batas operasi masih perlu verifikasi.`
+                  : "Data jalur/stasiun nasional OSM belum tersedia. Tujuh stasiun dan sembilan koridor lama tetap tersedia sebagai skema, bukan bentuk rel nyata."}
+              </p>
+              {tracks
+                .filter(
+                  (e) =>
+                    operatingTrackAccessible(e, state.access) ||
+                    stations.some((st) => st.id === e.originStationId),
+                )
+                .slice(0, 100)
+                .map((e) => (
                   <div className="list-row" key={e.id}>
                     <div>
                       <b>
@@ -322,7 +450,7 @@ export default function CoreGame() {
                         {e.isDoubleTrack ? "Double track" : "Single track"}
                       </small>
                     </div>
-                    {state.access.includes(e.id) ? (
+                    {operatingTrackAccessible(e, state.access) ? (
                       <span className="pill good">Terbuka</span>
                     ) : (
                       <button
@@ -338,42 +466,51 @@ export default function CoreGame() {
                     )}
                   </div>
                 ))}
-              </Card>
-              <Card title="Fasilitas kontrak">
-                {stations
-                  .filter(
-                    (st) => !state.depots.some((d) => d.station === st.id),
-                  )
-                  .map((st) => (
-                    <div className="list-row" key={st.id}>
-                      <span>{stationName(st.id)}</span>
-                      <button
-                        onClick={() => act({ type: "depot", station: st.id })}
-                      >
-                        Kontrak dipo · Rp10 jt
-                      </button>
-                    </div>
-                  ))}
-              </Card>
-            </div>
-          )}
-        </aside>
+            </Card>
+            <Card title="Fasilitas kontrak">
+              {stations
+                .filter(
+                  (st) =>
+                    st.connected &&
+                    !state.depots.some((d) => d.station === st.id),
+                )
+                .slice(0, 100)
+                .map((st) => (
+                  <div className="list-row" key={st.id}>
+                    <span>{stationName(st.id)}</span>
+                    <button
+                      onClick={() => act({ type: "depot", station: st.id })}
+                    >
+                      Kontrak depo · {compact(depotContractPrice(st.id))}
+                    </button>
+                  </div>
+                ))}
+            </Card>
+          </div>
+        )}
+      </aside>
+      {!open && (
+        <button
+          className="sidebar-expand"
+          aria-label="Buka sidebar"
+          aria-controls="operations-sidebar"
+          aria-expanded={false}
+          onClick={() => setOpen(true)}
+        >
+          <ChevronRight size={22} />
+        </button>
       )}
-      <nav className="game-dock" aria-label="Menu utama">
-        {nav.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            className={screen === id && open ? "active" : ""}
-            onClick={() => {
-              setScreen(id);
-              setOpen(screen !== id || !open);
-            }}
-            aria-label={label}
-          >
-            <Icon size={21} />
-            <span>{label}</span>
-          </button>
-        ))}
+      <nav className="game-dock" aria-label="Akses cepat">
+        <button
+          aria-label="Depo"
+          className={
+            screen === "fleet" && fleetView === "depot" && open ? "active" : ""
+          }
+          onClick={() => go("fleet", "depot")}
+        >
+          <Warehouse size={22} />
+          <span>Depo</span>
+        </button>
         <button
           aria-label={feedback.sound ? "Nonaktifkan suara" : "Aktifkan suara"}
           aria-pressed={feedback.sound}
