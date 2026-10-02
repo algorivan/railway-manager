@@ -70,6 +70,7 @@ export interface CorePlan {
   cycle: number;
   offset: number;
   nextAt: number;
+  firstAt?: number;
   once?: boolean;
   active: boolean;
 }
@@ -1090,12 +1091,14 @@ export type CoreAction =
       offset: number;
       roundTrip: boolean;
       reverse?: boolean;
+      replace?: boolean;
     }
   | {
       type: "diagram";
       trainsetId: string;
       cycle: number;
       duties: { serviceId: string; reverse: boolean; offset: number }[];
+      replace?: boolean;
     }
   | { type: "disablePlan"; planId: string }
   | { type: "disableDiagram"; trainsetId: string }
@@ -1375,8 +1378,10 @@ export function applyCoreAction(
       const inbound = forecastCore(s, t.id, r.id, !reverse);
       if (action.roundTrip && duration + inbound.end - inbound.start + B.turnaroundMinutes * 2 > action.cycle)
         throw new Error("PP dan turnaround tidak muat dalam siklus.");
-      if (s.plans.some((p) => p.trainsetId === t.id && p.active))
+      if (!action.replace && s.plans.some((p) => p.trainsetId === t.id && p.active))
         throw new Error("Nonaktifkan diagram sebelumnya sebelum menggantinya.");
+      if (action.replace && s.runs.some((r) => r.trainsetId === t.id && ["running", "held", "stopped"].includes(r.status)))
+        throw new Error("Selesaikan atau pulihkan perjalanan aktif sebelum mengubah jadwal.");
       const base = Math.floor(s.minute / action.cycle) * action.cycle;
       let first = base + action.offset;
       if (first < s.minute) first += action.cycle;
@@ -1385,14 +1390,15 @@ export function applyCoreAction(
       const p: CorePlan = {
         id, trainsetId: t.id, serviceId: r.id, reverse,
         cycle: action.cycle, offset: action.offset,
-        nextAt: first, once: !action.roundTrip, active: true,
+        nextAt: first, firstAt: first, once: !action.roundTrip, active: true,
       };
+      if (action.replace) for (const old of s.plans) if (old.trainsetId === t.id) old.active = false;
       s.plans.push(p);
       if (action.roundTrip)
         s.plans.push({
           ...p, id: `${id}:return`, reverse: !reverse,
           offset: (action.offset + duration + B.turnaroundMinutes) % action.cycle,
-          nextAt: first + duration + B.turnaroundMinutes,
+          nextAt: first + duration + B.turnaroundMinutes, firstAt: first + duration + B.turnaroundMinutes,
         });
       break;
     }
@@ -1404,13 +1410,15 @@ export function applyCoreAction(
     case "diagram": {
       const t = train(action.trainsetId);
       idle(t);
-      if (s.plans.some((p) => p.trainsetId === t.id && p.active))
+      if (!action.replace && s.plans.some((p) => p.trainsetId === t.id && p.active))
         throw new Error("Nonaktifkan diagram sebelumnya dahulu.");
+      if (action.replace && s.runs.some((r) => r.trainsetId === t.id && ["running", "held", "stopped"].includes(r.status)))
+        throw new Error("Selesaikan atau pulihkan perjalanan aktif sebelum mengubah jadwal.");
       const preview = previewCoreDiagram(s, t.id, action.cycle, action.duties);
       if (preview.issues.length) throw new Error(preview.issues[0]);
       const duties = preview.duties;
-      const base = Math.floor(s.minute / action.cycle) * action.cycle;
-      const shift = base + duties[0]!.offset < s.minute ? action.cycle : 0;
+      const anchor = coreDiagramAnchor(s, t.id, action.cycle, duties);
+      if (action.replace) for (const old of s.plans) if (old.trainsetId === t.id) old.active = false;
       duties.forEach((d, i) =>
         s.plans.push({
           id: `${id}:${i}`,
@@ -1419,7 +1427,8 @@ export function applyCoreAction(
           reverse: d.reverse,
           cycle: action.cycle,
           offset: d.offset,
-          nextAt: base + shift + d.offset,
+          nextAt: anchor.time + ((d.offset - duties[anchor.index]!.offset + action.cycle) % action.cycle),
+          firstAt: anchor.time + ((d.offset - duties[anchor.index]!.offset + action.cycle) % action.cycle),
           active: true,
         }),
       );
@@ -1890,6 +1899,7 @@ const saveSchema = z.object({
       cycle: z.union([z.literal(1440), z.literal(2880), z.literal(4320)]),
       offset: finite,
       nextAt: finite,
+      firstAt: finite.nonnegative().optional(),
       active: z.boolean(),
       once: z.boolean().optional(),
     }),
@@ -2068,16 +2078,16 @@ export function previewCoreDiagram(s: CoreState, trainsetId: string, cycle: numb
   const t = s.trainsets.find((t) => t.id === trainsetId);
   if (!t) return { duties, runs, issues: ["Pilih trainset untuk menyusun pola."] };
   if (![1440, 2880, 4320].includes(cycle) || duties.length < 2 || duties.length > 24)
-    issues.push("Diagram memerlukan 2–24 dinas dalam siklus 24/48/72 jam.");
+    issues.push("Tambahkan 2–24 perjalanan untuk jadwal berulang setiap 1, 2, atau 3 hari.");
   if (!duties.length) return { duties, runs, issues };
   for (const d of duties) {
     if (!Number.isFinite(d.offset) || d.offset < 0 || d.offset >= cycle)
-      return { duties, runs, issues: [...issues, "Waktu dinas di luar siklus."] };
+      return { duties, runs, issues: [...issues, "Jam perjalanan berada di luar periode jadwal."] };
     try { runs.push(forecastCore(s, t.id, d.serviceId, d.reverse, d.offset)); }
     catch (error) { return { duties, runs, issues: [...issues, (error as Error).message] }; }
   }
-  if (runs[0]!.origin !== t.location)
-    issues.push("Awal diagram tidak sesuai lokasi trainset.");
+  const anchor = coreDiagramAnchor(s, t.id, cycle, duties);
+  if (anchor.index < 0) issues.push("Awal jadwal tidak sesuai lokasi trainset.");
   for (let i = 0; i < runs.length; i++) {
     const run = runs[i]!, following = runs[(i + 1) % runs.length]!;
     const turnaround = coreDutyTurnaround(run, following);
@@ -2086,15 +2096,31 @@ export function previewCoreDiagram(s: CoreState, trainsetId: string, cycle: numb
     if (run.serviceId !== following.serviceId && !s.depots.some((d) => d.station === run.destination))
       issues.push("Pergantian relasi memerlukan fasilitas kontrak dipo/service.");
     if (run.end + turnaround > following.start + (i === runs.length - 1 ? cycle : 0))
-      issues.push("Dinas bertumpuk atau jeda tidak cukup, termasuk sambungan siklus berikutnya.");
+      issues.push("Perjalanan bertumpuk atau jeda tidak cukup, termasuk keberangkatan pada pengulangan jadwal berikutnya.");
   }
-  const base = Math.floor(s.minute / cycle) * cycle;
-  const first = base + duties[0]!.offset;
-  if (first + (first < s.minute ? cycle : 0) < t.readyAt)
+  if (anchor.index >= 0 && anchor.time < t.readyAt)
     issues.push("Dinas pertama dimulai sebelum jeda persiapan selesai.");
   return { duties, runs, issues: [...new Set(issues)] };
 }
 export function coreDutyTurnaround(run: CoreRun, following?: CoreRun): number {
   return following && run.serviceId !== following.serviceId
     ? B.changeServiceMinutes : B.turnaroundMinutes;
+}
+
+/** Start the repeating loop at the next departure from the trainset's actual station, including overnight PP. */
+export function coreDiagramAnchor(s: CoreState, trainsetId: string, cycle: number, duties: CoreDuty[]) {
+  const t = s.trainsets.find((t) => t.id === trainsetId);
+  let index = -1, time = Infinity;
+  if (!t || ![1440, 2880, 4320].includes(cycle)) return { index, time };
+  const base = Math.floor(s.minute / cycle) * cycle;
+  duties.forEach((d, i) => {
+    const relation = s.services.find((r) => r.id === d.serviceId);
+    if (!relation || !Number.isFinite(d.offset) || d.offset < 0 || d.offset >= cycle) return;
+    const origin = relation.stations[d.reverse ? relation.stations.length - 1 : 0];
+    if (origin !== t.location) return;
+    let departure = base + d.offset;
+    if (departure < s.minute) departure += cycle;
+    if (departure < time) { index = i; time = departure; }
+  });
+  return { index, time };
 }

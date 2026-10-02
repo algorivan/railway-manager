@@ -1561,3 +1561,9 @@
 .station-demand-details summary { cursor: pointer; font-weight: 600; }
 .demand-factor-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px 12px; }
 .demand-factor-grid dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+
+.stop-sheet { margin: 12px 0; padding: 10px; border: 1px solid #d7e3ec; border-radius: 8px; }
+.stop-sheet > small { display: block; margin: 4px 0 10px; }
+.stop-sheet table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
+.stop-sheet th, .stop-sheet td { padding: 7px 4px; text-align: left; border-bottom: 1px solid #e5ebef; overflow-wrap: anywhere; }
+.stop-sheet th:first-child { width: 36%; }

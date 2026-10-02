@@ -45,7 +45,7 @@ export function TimetableEditor({ state: s, trainsetId, cycle, duties, onChange 
           const rest = coreDutyTurnaround(run, following);
           const overlapCycle = runs.some((other, j) => i !== j && run.end + coreDutyTurnaround(run, other) > other.start + cycle);
           const clash = clashes[i] || overlapCycle;
-          return <div className="timetable-lane" key={i} aria-label={`Jalur waktu dinas ${i + 1}`} onClick={(event) => {
+          return <div className="timetable-lane" key={i} aria-label={`Jalur waktu perjalanan ${i + 1}`} onClick={(event) => {
             if (event.target !== event.currentTarget) return;
             const rect = event.currentTarget.getBoundingClientRect(); update(i, { offset: snap(from + (event.clientX - rect.left) / rect.width * span) });
           }}>
@@ -54,10 +54,10 @@ export function TimetableEditor({ state: s, trainsetId, cycle, duties, onChange 
               const start = run.start - shift, end = run.end - shift;
               return <div key={shift}>
                 {end + rest > from && end < to && <span className="timetable-rest" style={clip(end, end + rest)} title={`Jeda ${rest} menit`} />}
-                {end > from && start < to && <button type="button" className={`timetable-block ${clash ? "conflict" : ""}`} style={clip(start, end)} aria-label={`Blok dinas ${i + 1}`} title={`${stationName(run.origin)} → ${stationName(run.destination)} · ${when(run.start)}–${when(run.end)}`} onClick={(e) => e.stopPropagation()}
+                {end > from && start < to && <button type="button" className={`timetable-block ${clash ? "conflict" : ""}`} style={clip(start, end)} aria-label={`Blok perjalanan ${i + 1}`} title={`${stationName(run.origin)} → ${stationName(run.destination)} · ${when(run.start)}–${when(run.end)}`} onClick={(e) => e.stopPropagation()}
                   onPointerDown={(event) => { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); drag.current = { index: i, x: event.clientX, offset: duties[i]!.offset, width: event.currentTarget.parentElement!.parentElement!.getBoundingClientRect().width }; }}
                   onPointerMove={move} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }} onLostPointerCapture={() => { drag.current = null; }}
-                  onKeyDown={(event) => { if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); update(i, { offset: snap(duties[i]!.offset + (event.key === "ArrowLeft" ? -15 : 15)) }); } }}>
+                  onKeyDown={(event) => { if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); update(i, { offset: Math.max(0, Math.min(cycle - 1, duties[i]!.offset + (event.key === "ArrowLeft" ? -15 : 15))) }); } }}>
                   {i + 1}. {clock(run.start)} → {clock(run.end)}
                 </button>}
               </div>;
@@ -66,22 +66,22 @@ export function TimetableEditor({ state: s, trainsetId, cycle, duties, onChange 
         })}
       </div>
     </div>
-    {!duties.length && <p className="muted">Tambahkan dinas pergi atau balik untuk mulai menyusun blok.</p>}
+    {!duties.length && <p className="muted">Tambahkan perjalanan pergi atau balik untuk mulai menyusun blok.</p>}
     <p className="timetable-legend"><span>■ Perjalanan</span><span>▧ Jeda</span><span className="warning-text">■ Bentrok waktu</span></p>
     {duties.map((d, i) => <div className="timetable-duty" key={i}>
-      <b>Dinas {i + 1} · {stationName(runs[i]!.origin)} → {stationName(runs[i]!.destination)}</b>
+      <b>Perjalanan {i + 1} · {stationName(runs[i]!.origin)} → {stationName(runs[i]!.destination)}</b>
       <div className="field-pair">
-        <label>Relasi<select aria-label={`Relasi dinas ${i + 1}`} value={d.serviceId} onChange={(e) => update(i, { serviceId: e.target.value })}>{s.services.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
-        <label>Arah<select aria-label={`Arah dinas ${i + 1}`} value={String(d.reverse)} onChange={(e) => update(i, { reverse: e.target.value === "true" })}><option value="false">Awal → akhir</option><option value="true">Akhir → awal</option></select></label>
-        <label>Hari<select aria-label={`Hari dinas ${i + 1}`} value={Math.floor(d.offset / 1440)} onChange={(e) => update(i, { offset: Number(e.target.value) * 1440 + d.offset % 1440 })}>{Array.from({ length: cycle / 1440 }, (_, day) => <option key={day} value={day}>Hari {day + 1}</option>)}</select></label>
-        <label>Berangkat<input aria-label={`Jam dinas ${i + 1}`} type="time" value={clock(d.offset)} onChange={(e) => { if (!e.target.value) return; const [h, m] = e.target.value.split(":").map(Number); update(i, { offset: Math.floor(d.offset / 1440) * 1440 + h! * 60 + m! }); }} /></label>
+        <label>Relasi<select aria-label={`Relasi perjalanan ${i + 1}`} value={d.serviceId} onChange={(e) => update(i, { serviceId: e.target.value })}>{s.services.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+        <label>Arah<select aria-label={`Arah perjalanan ${i + 1}`} value={String(d.reverse)} onChange={(e) => update(i, { reverse: e.target.value === "true" })}><option value="false">Stasiun awal → tujuan</option><option value="true">Tujuan → stasiun awal</option></select></label>
+        <label>Hari<select aria-label={`Hari perjalanan ${i + 1}`} value={Math.floor(d.offset / 1440)} onChange={(e) => update(i, { offset: Number(e.target.value) * 1440 + d.offset % 1440 })}>{Array.from({ length: cycle / 1440 }, (_, day) => <option key={day} value={day}>Hari {day + 1}</option>)}</select></label>
+        <label>Berangkat<input aria-label={`Jam perjalanan ${i + 1}`} type="time" value={clock(d.offset)} onChange={(e) => { if (!e.target.value) return; const [h, m] = e.target.value.split(":").map(Number); update(i, { offset: Math.floor(d.offset / 1440) * 1440 + h! * 60 + m! }); }} /></label>
       </div>
       <small>Estimasi tiba {when(runs[i]!.end)} · perjalanan {Math.ceil(runs[i]!.end - runs[i]!.start)} menit game</small>
-      <button aria-label={`Hapus dinas ${i + 1}`} onClick={() => onChange(duties.filter((_, j) => j !== i))}>Hapus dinas</button>
+      <button aria-label={`Hapus perjalanan ${i + 1}`} onClick={() => onChange(duties.filter((_, j) => j !== i))}>Hapus dinas</button>
     </div>)}
     <div className={`readiness ${preview.issues.length ? "warning" : ""}`} aria-live="polite">
       <div><b>{preview.issues.length ? "Pola perlu disesuaikan" : "Pola tersambung dan waktu mencukupi"}</b>{preview.issues.map((issue) => <p key={issue}>{issue}</p>)}</div>
     </div>
-    <p className="muted">Batas siklus: {cycle / 60} jam. Blok melewati tengah malam tampil pada hari berikutnya; blok yang melewati akhir siklus tampil lagi di awal. Estimasi belum menjamin blok lintas bebas saat keberangkatan.</p>
+    <p className="muted">Jadwal ini diulang setiap {cycle / 1440} hari game. Blok melewati tengah malam tampil pada hari berikutnya; blok yang melewati akhir periode jadwal tampil lagi di hari pertama jadwal berikutnya. Estimasi belum menjamin blok lintas bebas saat keberangkatan.</p>
   </div>;
 }

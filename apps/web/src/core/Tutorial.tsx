@@ -10,7 +10,7 @@ const instructions: Record<string, string> = {
   crew: "Di Kantor, gunakan Rekrut otomatis sesuai kebutuhan pada bagian SDM. Kontrak kru diperlukan sebelum trainset dapat berangkat.",
   fuel: "Beli cadangan fuel di Kantor, lalu buka detail trainset di Armada dan tekan Isi tangki penuh. Stok depo berbeda dari fuel onboard.",
   service: "Di Jadwal, tekan Buat relasi. Pilih stasiun awal, akhir dan pemberhentian. Nama memakai kode stasiun dan relasi dapat digunakan dua arah. Tinjau tarif serta forecast.",
-  schedule: "Di Jadwal, pilih trainset dan arah sesuai lokasinya. Gunakan sekali jalan, PP otomatis, atau timetable multi-relasi. Blok menunjukkan estimasi tiba dan jeda; pola harus tersambung tanpa bentrok.",
+  schedule: "Di Jadwal, pilih trainset dan arah sesuai lokasinya. Pilih PP otomatis pada jam tetap, sekali jalan, atau susun sendiri. Atur jam lewat timetable dan tinjau rekap Tujuan | Tiba | Berangkat. Blok menunjukkan estimasi tiba dan jeda; perjalanan harus tersambung tanpa bentrok.",
   run: "Pantau trainset di Peta dan Armada. Jika tertahan, baca alasannya dan perbaiki kesiapan. Selesaikan dinas penumpang pertama, lalu tinjau hasil operasi di Kantor.",
 };
 const menuNames: Record<Screen, string> = { map: "Peta", fleet: "Armada", schedule: "Jadwal", market: "Pasar", office: "Kantor", tutorial: "Misi" };

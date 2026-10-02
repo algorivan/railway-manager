@@ -493,7 +493,7 @@ function TrainDetail({
         {!run && (
           <div className="action-grid">
             <button onClick={() => go("schedule")}>
-              <CalendarDays size={16} /> Assign relasi
+              <CalendarDays size={16} /> Buka menu Jadwal
             </button>
             <button onClick={edit}>
               <TrainFront size={16} /> Edit formasi
@@ -541,7 +541,7 @@ function TrainDetail({
           </div>
         ))}
         <p className="muted">
-          Biaya/durasi adalah balance sementara. Jeda diagram sebelum servis,
+          Biaya/durasi adalah balance sementara. Jeda jadwal melalui menu Jadwal sebelum servis,
           atau gunakan unit pengganti.
         </p>
         <label>

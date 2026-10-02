@@ -365,7 +365,7 @@ export default function CoreGame() {
                 : screen === "fleet"
                   ? "Armada & operasi"
                   : screen === "schedule"
-                    ? "Diagram dinas"
+                    ? "Jadwal perjalanan"
                     : screen === "market"
                       ? "Pasar sarana"
                       : screen === "tutorial"
