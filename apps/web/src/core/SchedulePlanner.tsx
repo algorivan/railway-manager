@@ -13,16 +13,13 @@ import {
   type CoreState,
 } from "@railway/simulation";
 import { Card, clock, compact, when, type Act } from "./presentation";
-import { PagedList, ResponsiveColumns } from "./Compact";
+import { ResponsiveColumns } from "./Compact";
 const minutes = (value: string) => {
   const [h, m] = value.split(":").map(Number);
   return h! * 60 + m!;
 };
 export function CompactStopSheet({ run }: { run: CoreRun }) {
-  const [page, setPage] = useState(0),
-    rows = coreRunStationTimes(run),
-    pages = Math.ceil(rows.length / 3),
-    current = Math.min(page, pages - 1);
+  const rows = coreRunStationTimes(run);
   return (
     <div className="stop-sheet">
       <b>
@@ -32,48 +29,34 @@ export function CompactStopSheet({ run }: { run: CoreRun }) {
         {when(run.start)} — {when(run.end)} · {Math.ceil(run.end - run.start)}{" "}
         menit
       </small>
-      <table>
-        <thead>
-          <tr>
-            <th>Tujuan</th>
-            <th>Tiba</th>
-            <th>Berangkat</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.slice(current * 3, (current + 1) * 3).map((row) => (
-            <tr key={row.stationId}>
-              <td>{stationName(row.stationId)}</td>
-              <td>
-                {row.arrival === null
-                  ? "—"
-                  : clock(row.arrival) +
-                    (Math.floor(row.arrival / 1440) >
-                    Math.floor(run.start / 1440)
-                      ? ` (+${Math.floor(row.arrival / 1440) - Math.floor(run.start / 1440)} hari)`
-                      : "")}
-              </td>
-              <td>{row.departure === null ? "—" : clock(row.departure)}</td>
+      <div className="stop-table-scroll detail-scroll" tabIndex={0}>
+        <table>
+          <thead>
+            <tr>
+              <th>Tujuan</th>
+              <th>Tiba</th>
+              <th>Berangkat</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {pages > 1 && (
-        <div className="pager">
-          <button disabled={!current} onClick={() => setPage(current - 1)}>
-            ←
-          </button>
-          <span>
-            Pemberhentian {current + 1}/{pages}
-          </span>
-          <button
-            disabled={current + 1 === pages}
-            onClick={() => setPage(current + 1)}
-          >
-            →
-          </button>
-        </div>
-      )}
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.stationId}>
+                <td>{stationName(row.stationId)}</td>
+                <td>
+                  {row.arrival === null
+                    ? "—"
+                    : clock(row.arrival) +
+                      (Math.floor(row.arrival / 1440) >
+                      Math.floor(run.start / 1440)
+                        ? ` (+${Math.floor(row.arrival / 1440) - Math.floor(run.start / 1440)} hari)`
+                        : "")}
+                </td>
+                <td>{row.departure === null ? "—" : clock(row.departure)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -247,6 +230,8 @@ export function SchedulePlanner({
             s.services.find((r) => r.id === current.serviceId)!.stations.at(-1),
         )
       : [];
+  const patternFuel = runs.reduce((sum, run) => sum + run.fuelLiters, 0),
+    dailyFuel = patternFuel / (mode === "once" ? 1 : repeat / 1440);
   const save = () => {
     if (!train || !duties.length) return;
     const ok =
@@ -494,31 +479,24 @@ export function SchedulePlanner({
           </small>
         </Card>
         <Card title="2 · Timetable & pemberhentian">
-          <PagedList
-            size={3}
-            items={runs}
-            render={(run, index) => (
-              <button
-                className={`schedule-block ${selected === index ? "selected" : ""}`}
-                key={`${run.serviceId}:${run.start}`}
-                onClick={() => setSelected(index)}
-              >
-                <b>
-                  {clock(run.start)} → {clock(run.end)}
-                </b>
-                <span>
-                  {stationName(run.origin)} → {stationName(run.destination)}
-                </span>
-                <small>
-                  {Math.ceil(run.end - run.start)} menit · perkiraan kontribusi{" "}
-                  {compact(run.revenue - run.cost)}
-                </small>
-              </button>
-            )}
-          />
+          <label className="trip-selector">
+            Perjalanan ({runs.length})
+            <select
+              aria-label="Pilih perjalanan timetable"
+              value={Math.min(selected, Math.max(0, runs.length - 1))}
+              onChange={(e) => setSelected(Number(e.target.value))}
+            >
+              {runs.map((run, index) => (
+                <option key={`${run.serviceId}:${run.start}`} value={index}>
+                  {index + 1}. {clock(run.start)} → {clock(run.end)} ·{" "}
+                  {stationName(run.origin)} – {stationName(run.destination)}
+                </option>
+              ))}
+            </select>
+          </label>
           {current && selectedDuty >= 0 && (
             <div className="trip-adjustment">
-              {timeField(selectedDuty, "Ubah jam perjalanan terpilih")}
+              {timeField(selectedDuty, "Jam berangkat perjalanan")}
               <label>
                 Relasi perjalanan
                 <select
@@ -544,6 +522,22 @@ export function SchedulePlanner({
           )}
         </Card>
       </ResponsiveColumns>
+      <div
+        className="schedule-fuel-summary"
+        role="status"
+        aria-label="Estimasi fuel harian"
+      >
+        <span>Estimasi fuel</span>
+        <b>
+          {Math.ceil(dailyFuel).toLocaleString("id-ID")} L /{" "}
+          {mode === "once" ? "perjalanan" : "hari"}
+        </b>
+        <small>
+          {repeat > 1440 && mode !== "once"
+            ? `Rata-rata ${repeat / 1440} hari · total ${Math.ceil(patternFuel).toLocaleString("id-ID")} L`
+            : "Semua keberangkatan pergi & balik"}
+        </small>
+      </div>
       <div className="schedule-save">
         <div>
           <b>

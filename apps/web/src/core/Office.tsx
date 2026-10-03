@@ -17,7 +17,7 @@ import {
   type Act,
   type Screen,
 } from "./presentation";
-import { CompactWorkspace, PagedList, ResponsiveColumns } from "./Compact";
+import { CompactWorkspace, ScrollList, ResponsiveColumns } from "./Compact";
 import { CargoContracts } from "./CargoContracts";
 import { RunReport } from "./RunReport";
 export function Office({
@@ -104,7 +104,7 @@ export function Office({
             </p>
           </div>
           <div>
-            <PagedList
+            <ScrollList
               items={staffing}
               render={({ trainset: t, needs: n }) => (
                 <div className="list-row" key={t.id}>
@@ -264,8 +264,7 @@ export function Office({
             </p>
           </div>
           <div>
-            <PagedList
-              size={1}
+            <ScrollList
               items={[...completed].reverse()}
               render={(r) => <RunReport key={r.id} run={r} state={s} />}
             />
@@ -338,8 +337,7 @@ export function Office({
         </ResponsiveColumns>
       </Card>
       <Card title="Ledger">
-        <PagedList
-          size={5}
+        <ScrollList
           items={[...s.ledger].reverse()}
           render={(e) => (
             <div className="list-row" key={e.id}>

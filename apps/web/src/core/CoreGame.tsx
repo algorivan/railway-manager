@@ -93,6 +93,10 @@ export default function CoreGame() {
   const [modalOpen, setModalOpen] = useState(
     () => !readPreference(TUTORIAL_KEY),
   );
+  const [mapPicking, setMapPicking] = useState<{
+    target: "origin" | "destination";
+    onSelect: (station: string) => void;
+  } | null>(null);
   const [draftDirty, setDraftDirty] = useState(false);
   const [importing, setImporting] = useState(false);
   const [fleetView, setFleetView] = useState<"operations" | "depot">(
@@ -188,6 +192,7 @@ export default function CoreGame() {
       notify("Simpan atau tutup rancangan jadwal sebelum berganti menu.", true);
       return;
     }
+    setMapPicking(null);
     if (screen === "tutorial" && target !== "tutorial")
       setTutorialJourney(true);
     if (target === "tutorial") setTutorialJourney(false);
@@ -301,7 +306,7 @@ export default function CoreGame() {
     );
   return (
     <main
-      className={`core-game ${open ? "sidebar-open" : "sidebar-collapsed"}`}
+      className={`core-game ${open ? "sidebar-open" : "sidebar-collapsed"} ${mapPicking ? "station-picking" : ""}`}
     >
       <Suspense
         fallback={
@@ -310,7 +315,11 @@ export default function CoreGame() {
           </div>
         }
       >
-        <CoreMap state={state} />
+        <CoreMap
+          state={state}
+          picking={mapPicking?.target}
+          onPick={(station) => mapPicking?.onSelect(station)}
+        />
       </Suspense>
       <GameHeader state={state} />
       <div className="map-caption">
@@ -360,9 +369,14 @@ export default function CoreGame() {
               ? () => go("tutorial")
               : undefined
           }
-          dirty={draftDirty}
+          interactiveMap={!!mapPicking}
+          dirty={draftDirty && !mapPicking}
           discard={() => setDraftDirty(false)}
           close={() => {
+            if (mapPicking) {
+              setMapPicking(null);
+              return;
+            }
             setModalOpen(false);
             setDraftDirty(false);
           }}
@@ -385,9 +399,21 @@ export default function CoreGame() {
               />
             )}
             {screen === "schedule" && (
-              <Schedules state={state} act={act} onDirty={setDraftDirty} />
+              <Schedules
+                state={state}
+                act={act}
+                onDirty={setDraftDirty}
+                notify={notify}
+                picking={mapPicking?.target}
+                pickStation={(target, onSelect) =>
+                  setMapPicking({ target, onSelect })
+                }
+                finishPicking={() => setMapPicking(null)}
+              />
             )}
-            {screen === "market" && <Market state={state} act={act} />}
+            {screen === "market" && (
+              <Market state={state} act={act} notify={notify} />
+            )}
             {screen === "office" && (
               <Office
                 go={go}

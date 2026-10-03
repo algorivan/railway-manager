@@ -2,7 +2,7 @@ import { useState } from "react";
 import { CORE_CARGO_OFFERS, CORE_OPERATING_TRACKS } from "@railway/game-data";
 import { findCorePath, type CoreState } from "@railway/simulation";
 import { compact, money, when, type Act, type Screen } from "./presentation";
-import { PagedList, ResponsiveColumns } from "./Compact";
+import { ScrollList, ResponsiveColumns } from "./Compact";
 export function CargoContracts({
   state: s,
   act,
@@ -113,8 +113,7 @@ export function CargoContracts({
           Jadwal pengiriman berhenti saat kontrak selesai/kedaluwarsa;
           perjalanan balik tetap tersedia.
         </p>
-        <PagedList
-          size={1}
+        <ScrollList
           items={[...(s.cargoContracts ?? [])].reverse()}
           render={(c) => (
             <article className="contract-progress" key={c.id}>

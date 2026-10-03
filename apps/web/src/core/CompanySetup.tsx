@@ -25,11 +25,6 @@ export function CompanySetup({
       <div className="company-setup-card">
         <small>MISI 1 DARI 9 · DIRIKAN DEPO & PILIH HUB</small>
         <h1 id="company-setup-title">Mulai dari depo Anda.</h1>
-        <p>
-          Depo menyimpan sarana, menyediakan fuel dan fasilitas maintenance.
-          Pilih kota terlebih dahulu, lalu tentukan stasiun hub yang melayani
-          depo tersebut.
-        </p>
         <div className="wizard-steps">
           <span className={stage === 1 ? "active" : ""}>
             1 · Kota & biaya depo
@@ -71,10 +66,6 @@ export function CompanySetup({
                 </button>
               ))}
             </div>
-            <p className="muted">
-              Harga kontrak adalah balance game sementara. Pilihan kota
-              mengikuti stasiun yang tersedia di katalog saat ini.
-            </p>
             <button
               className="primary"
               disabled={!city}
@@ -114,11 +105,6 @@ export function CompanySetup({
                 <b>{compact(state.cash - (city?.cost ?? 0) + 100_000_000)}</b>
               </div>
             </div>
-            <p className="muted">
-              Kontrak dibuat di stasiun hub pilihan Anda. Harga dibayarkan
-              sekali saat konfirmasi. Setelah ini, lanjutkan misi untuk
-              memperoleh modal operasional tambahan.
-            </p>
             <div className="toolbar">
               <button onClick={() => setStage(1)}>
                 <ArrowLeft size={14} /> Kembali

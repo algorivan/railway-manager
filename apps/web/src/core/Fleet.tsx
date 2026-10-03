@@ -8,7 +8,7 @@ import {
   type CoreTrainset,
 } from "@railway/simulation";
 import { Asset, Card, type Act, type Screen } from "./presentation";
-import { CompactWorkspace, PagedList, ResponsiveColumns } from "./Compact";
+import { CompactWorkspace, ScrollList, ResponsiveColumns } from "./Compact";
 import { RunReport } from "./RunReport";
 import { Depot } from "./Depot";
 export function Fleet({
@@ -279,11 +279,12 @@ function Formation({
             </select>
           </label>
           <b>Inventori tersedia</b>
-          <PagedList
-            size={4}
-            items={available}
-            render={(u) => (
-              <label key={u.id} className="formation-choice">
+          <div
+            className="inventory-grid formation-grid detail-scroll"
+            tabIndex={0}
+          >
+            {available.map((u) => (
+              <label key={u.id} className="formation-choice inventory-card">
                 <input
                   type="checkbox"
                   checked={ids.includes(u.id)}
@@ -300,8 +301,8 @@ function Formation({
                   {coreProduct(u.productId).name} #{u.id.slice(-4)}
                 </span>
               </label>
-            )}
-          />
+            ))}
+          </div>
         </div>
         <div>
           <h2>{name}</h2>
@@ -314,8 +315,7 @@ function Formation({
             memerlukan pembangkit yang cukup. Formasi kargo tidak boleh
             bercampur kereta penumpang.
           </p>
-          <PagedList
-            size={4}
+          <ScrollList
             items={ids}
             render={(id, i) => (
               <div key={id} className="list-row">

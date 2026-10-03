@@ -13,14 +13,31 @@ import { Card, compact, type Act } from "./presentation";
 export function NetworkManagement({
   state: s,
   act,
+  initialSegment,
 }: {
   state: CoreState;
   act: Act;
+  initialSegment?: string;
 }) {
   const [tab, setTab] = useState("routes"),
-    [track, setTrack] = useState(CORE_GAME_CORRIDORS[0]!.id),
+    [track, setTrack] = useState(
+      CORE_GAME_CORRIDORS.find(
+        (c) =>
+          c.id === initialSegment ||
+          CORE_ROUTING_TRACKS.find(
+            (t) => t.id === initialSegment,
+          )?.accessKeys.includes(c.id),
+      )?.id ?? CORE_GAME_CORRIDORS[0]!.id,
+    ),
     [station, setStation] = useState(s.hub),
-    [section, setSection] = useState(CORE_ROUTING_TRACKS[0]!.id);
+    [section, setSection] = useState(
+      initialSegment ?? CORE_ROUTING_TRACKS[0]!.id,
+    );
+  const corridorSections = CORE_ROUTING_TRACKS.filter((t) =>
+      t.accessKeys.includes(track),
+    ),
+    speedMin = Math.min(...corridorSections.map((t) => t.trackSpeedLimitKmh)),
+    speedMax = Math.max(...corridorSections.map((t) => t.trackSpeedLimitKmh));
   const selectedStation = CORE_SELECTABLE_STATIONS.find(
     (st) => st.id === station,
   )!;
@@ -59,7 +76,9 @@ export function NetworkManagement({
             {stationName(corridor.destinationStationId)}
           </h2>
           <p>
-            ~{corridor.distanceKm} km · batas game {corridor.maxSpeedKmh} km/jam
+            ~{corridor.distanceKm} km · batas ruas{" "}
+            {Number.isFinite(speedMin) ? speedMin : corridor.maxSpeedKmh}–
+            {Number.isFinite(speedMax) ? speedMax : corridor.maxSpeedKmh} km/jam
           </p>
           <p className="muted">
             Posisi stasiun menggunakan OSM. Jalur dan jarak masih skema game.

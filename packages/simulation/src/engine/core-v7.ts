@@ -1280,6 +1280,11 @@ export type CoreAction =
       station: string;
       starter?: boolean;
     }
+  | {
+      type: "orderCart";
+      station: string;
+      items: { productId: string; quantity: number }[];
+    }
   | { type: "accept"; orderId: string }
   | { type: "formation"; trainsetId?: string; name: string; units: string[] }
   | {
@@ -1357,6 +1362,44 @@ export function applyCoreAction(
   };
   if (s.companyStarted === false && action.type !== "foundCompany")
     throw new Error("Dirikan depo dan pilih hub terlebih dahulu.");
+  const order = (
+    action: Extract<CoreAction, { type: "order" }>,
+    id: string,
+  ) => {
+    const p = coreProduct(action.productId);
+    if (
+      !Number.isInteger(action.quantity) ||
+      action.quantity < 1 ||
+      action.quantity > 20
+    )
+      throw new Error("Jumlah harus 1–20.");
+    if (!s.depots.some((d) => d.station === action.station))
+      throw new Error("Pilih dipo pengantaran.");
+    const already = s.orders
+      .filter((o) => o.productId === p.id)
+      .reduce((v, o) => v + o.quantity, 0);
+    const starter =
+      action.starter &&
+      action.station === s.hub &&
+      ((p.id === "cc201" && already + action.quantity <= 1) ||
+        (p.id === "ec-standard" && already + action.quantity <= 4) ||
+        (p.id === "generator" && already + action.quantity <= 1));
+    accounting(
+      s,
+      id,
+      `Pesanan ${action.quantity} × ${p.name}`,
+      -p.price * action.quantity,
+    );
+    s.orders.push({
+      id,
+      productId: p.id,
+      quantity: action.quantity,
+      station: action.station,
+      due: s.minute + (starter ? 0 : p.deliveryMinutes),
+      accepted: false,
+    });
+  };
+
   switch (action.type) {
     case "foundCompany": {
       if (s.companyStarted !== false)
@@ -1401,37 +1444,27 @@ export function applyCoreAction(
       break;
     }
     case "order": {
-      const p = coreProduct(action.productId);
+      order(action, id);
+      break;
+    }
+    case "orderCart": {
+      if (!action.items.length || action.items.length > CORE_PRODUCTS.length)
+        throw new Error("Keranjang kosong atau tidak valid.");
       if (
-        !Number.isInteger(action.quantity) ||
-        action.quantity < 1 ||
-        action.quantity > 20
+        new Set(action.items.map((item) => item.productId)).size !==
+        action.items.length
       )
-        throw new Error("Jumlah harus 1–20.");
-      if (!s.depots.some((d) => d.station === action.station))
-        throw new Error("Pilih dipo pengantaran.");
-      const already = s.orders
-        .filter((o) => o.productId === p.id)
-        .reduce((v, o) => v + o.quantity, 0);
-      const starter =
-        action.starter &&
-        action.station === s.hub &&
-        ((p.id === "cc201" && already + action.quantity <= 1) ||
-          (p.id === "ec-standard" && already + action.quantity <= 4) ||
-          (p.id === "generator" && already + action.quantity <= 1));
-      accounting(
-        s,
-        id,
-        `Pesanan ${action.quantity} × ${p.name}`,
-        -p.price * action.quantity,
-      );
-      s.orders.push({
-        id,
-        productId: p.id,
-        quantity: action.quantity,
-        station: action.station,
-        due: s.minute + (starter ? 0 : p.deliveryMinutes),
-        accepted: false,
+        throw new Error(
+          "Gabungkan sarana yang sama dalam satu baris keranjang.",
+        );
+      // All changes stay in the cloned state; any failed line discards the entire checkout.
+      action.items.forEach((item, index) => {
+        if (item.productId.endsWith("retrofit"))
+          throw new Error("Retrofit tersedia melalui Depo.");
+        order(
+          { type: "order", ...item, station: action.station, starter: true },
+          `${id}:item:${index}`,
+        );
       });
       break;
     }

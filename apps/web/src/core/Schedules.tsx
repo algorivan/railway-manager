@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import {
   CORE_SELECTABLE_STATIONS as stations,
   CORE_OPERATING_TRACKS,
+  CORE_ROUTING_TRACKS,
+  operatingTrackAccessible,
   type CoreClass,
 } from "@railway/game-data";
 import {
@@ -12,20 +14,32 @@ import {
   type CoreState,
 } from "@railway/simulation";
 import { Card, clock, when, type Act } from "./presentation";
-import { PagedList, ResponsiveColumns } from "./Compact";
+import { ScrollList, ResponsiveColumns } from "./Compact";
 import { StationPicker } from "./StationPicker";
 import { SchedulePlanner, CompactStopSheet } from "./SchedulePlanner";
+import { NetworkManagement } from "./NetworkManagement";
 import { RunReport } from "./RunReport";
 export function Schedules({
   state: s,
   act,
   onDirty,
+  notify,
+  picking,
+  pickStation,
+  finishPicking,
 }: {
   state: CoreState;
   act: Act;
   onDirty: (dirty: boolean) => void;
+  notify: (message: string, failed?: boolean) => void;
+  picking?: "origin" | "destination";
+  pickStation: (
+    target: "origin" | "destination",
+    onSelect: (station: string) => void,
+  ) => void;
+  finishPicking: () => void;
 }) {
-  const [tab, setTab] = useState("jadwal"),
+  const [tab, setTab] = useState("relasi"),
     [plannerDirty, setPlannerDirty] = useState(false),
     [relationDirty, setRelationDirty] = useState(false),
     [origin, setOrigin] = useState(s.hub),
@@ -42,7 +56,8 @@ export function Schedules({
     [rid, setRid] = useState(s.services[0]?.id ?? ""),
     [day, setDay] = useState(Math.floor(s.minute / 1440)),
     [selected, setSelected] = useState(0),
-    [history, setHistory] = useState(false);
+    [history, setHistory] = useState(false),
+    [buyingAccess, setBuyingAccess] = useState(false);
   useEffect(
     () => onDirty(plannerDirty || relationDirty),
     [plannerDirty, relationDirty, onDirty],
@@ -54,6 +69,95 @@ export function Schedules({
   } catch (e) {
     error = (e as Error).message;
   }
+  if (origin === dest) error = "Pilih stasiun awal dan akhir yang berbeda.";
+  let lockedSegments: string[] = [];
+  if (error && origin !== dest) {
+    try {
+      lockedSegments = findCorePath(origin, dest).segments.filter((id) => {
+        const edge = CORE_ROUTING_TRACKS.find((e) => e.id === id);
+        return edge && !operatingTrackAccessible(edge, s.access);
+      });
+      if (lockedSegments.length)
+        error = "Lintasan belum dibuka. Beli akses lintas terlebih dahulu.";
+    } catch {
+      /* Disconnected stations retain the routing error. */
+    }
+  }
+  const choose = (target: "origin" | "destination", id: string) => {
+    const from = target === "origin" ? id : origin,
+      to = target === "destination" ? id : dest;
+    if (target === "origin") setOrigin(id);
+    else setDest(id);
+    setSkipped([]);
+    setRelationDirty(true);
+    if (target === "destination") {
+      try {
+        findCorePath(from, to, s.access);
+      } catch {
+        notify(
+          "Relasi gagal: lintasan belum dibuka atau belum terhubung. Beli akses lintas melalui tombol di Relasi.",
+          true,
+        );
+      }
+    }
+  };
+  const selectOnMap = (target: "origin" | "destination") => {
+    pickStation(target, (id) => {
+      choose(target, id);
+      if (target === "origin") {
+        pickStation("destination", (destination) => {
+          setDest(destination);
+          setSkipped([]);
+          setRelationDirty(true);
+          finishPicking();
+          try {
+            findCorePath(id, destination, s.access);
+          } catch {
+            notify(
+              "Relasi gagal: lintasan belum dibuka atau belum terhubung. Beli akses lintas melalui tombol di Relasi.",
+              true,
+            );
+          }
+        });
+      } else finishPicking();
+    });
+  };
+  if (picking)
+    return (
+      <Card
+        title={
+          picking === "origin"
+            ? "1 · Pilih stasiun awal di peta"
+            : "2 · Pilih stasiun akhir di peta"
+        }
+      >
+        <p>Klik titik → pilih stasiun. Perbesar peta untuk titik kecil.</p>
+        <b>
+          {stationName(origin)} → {stationName(dest)}
+        </b>
+        <div className="toolbar">
+          <button onClick={() => selectOnMap("origin")}>
+            Pilih ulang asal
+          </button>
+          <button onClick={finishPicking}>Kembali ke relasi</button>
+        </div>
+      </Card>
+    );
+  if (buyingAccess)
+    return (
+      <div className="compact-workspace">
+        <div className="toolbar">
+          <button onClick={() => setBuyingAccess(false)}>
+            ← Kembali ke relasi
+          </button>
+        </div>
+        <NetworkManagement
+          state={s}
+          act={act}
+          initialSegment={lockedSegments[0]}
+        />
+      </div>
+    );
   const stops =
       path?.stations.filter((id) => stations.some((st) => st.id === id)) ?? [],
     name = coreServiceName(origin, dest),
@@ -64,8 +168,8 @@ export function Schedules({
     <div className="compact-workspace">
       <div className="workspace-tabs" role="tablist">
         {[
-          ["jadwal", "Atur jadwal"],
           ["relasi", "Relasi"],
+          ["jadwal", "Atur jadwal"],
           ["rekap", "Rekap harian"],
         ].map(([id, label]) => (
           <button
@@ -84,26 +188,26 @@ export function Schedules({
       <div role="tabpanel" hidden={tab !== "relasi"}>
         <ResponsiveColumns>
           <Card title="Relasi baru · dua arah">
+            <div className="toolbar">
+              <button className="primary" onClick={() => selectOnMap("origin")}>
+                Pilih asal & tujuan di peta
+              </button>
+              <button onClick={() => selectOnMap("destination")}>
+                Pilih tujuan di peta
+              </button>
+            </div>
             <div className="two-column">
               <StationPicker
                 compact
                 label="Stasiun awal"
                 value={origin}
-                onChange={(id) => {
-                  setOrigin(id);
-                  setSkipped([]);
-                  setRelationDirty(true);
-                }}
+                onChange={(id) => choose("origin", id)}
               />
               <StationPicker
                 compact
                 label="Stasiun akhir"
                 value={dest}
-                onChange={(id) => {
-                  setDest(id);
-                  setSkipped([]);
-                  setRelationDirty(true);
-                }}
+                onChange={(id) => choose("destination", id)}
               />
             </div>
             <h2>{name}</h2>
@@ -111,6 +215,14 @@ export function Schedules({
               {error ||
                 `${Math.round(path?.segments.reduce((total, id) => total + (CORE_OPERATING_TRACKS.find((t) => t.id === id)?.distanceKm ?? 0), 0) ?? 0)} km · ${stops.length} stasiun pada lintas`}
             </p>
+            {lockedSegments.length > 0 && (
+              <div className="locked-route" role="alert">
+                <b>Lintasan belum dibuka</b>
+                <button onClick={() => setBuyingAccess(true)}>
+                  Buka & beli lintas →
+                </button>
+              </div>
+            )}
             <button
               className="primary"
               disabled={!!error}
@@ -149,8 +261,7 @@ export function Schedules({
             </p>
           </Card>
           <Card title="Pemberhentian & tarif">
-            <PagedList
-              size={5}
+            <ScrollList
               items={stops.slice(1, -1)}
               render={(id) => (
                 <label className="stop-choice" key={id}>
@@ -257,8 +368,7 @@ export function Schedules({
         </div>
         {history ? (
           <Card title="Hasil perjalanan">
-            <PagedList
-              size={1}
+            <ScrollList
               items={[...s.runs].reverse()}
               render={(run) => (
                 <div key={run.id}>
@@ -278,8 +388,7 @@ export function Schedules({
         ) : (
           <ResponsiveColumns>
             <Card title={`${daily.length} perjalanan · hari ${day + 1}`}>
-              <PagedList
-                size={3}
+              <ScrollList
                 items={daily}
                 render={(run, i) => (
                   <button

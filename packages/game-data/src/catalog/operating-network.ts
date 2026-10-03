@@ -23,6 +23,11 @@ import {
   type GameStationClass,
   type HubProximity,
 } from "./station-class.js";
+import {
+  deriveSectionSpeedLimits,
+  sectionSpeedPath,
+  speedPairKey,
+} from "./section-speeds.js";
 import { OSM_NETWORK_DATA } from "./osm-network-data.js";
 
 export type RailPoint = [number, number]; // Latitude, longitude (Leaflet order).
@@ -240,7 +245,7 @@ const legacyIntermediateTracks: OperatingTrack[] =
 const legacyIntermediateIds = new Set(
   legacyIntermediateTracks.map((edge) => edge.id),
 );
-export const CORE_OPERATING_TRACKS: readonly OperatingTrack[] = [
+const rawOperatingTracks: readonly OperatingTrack[] = [
   ...CORE_GAME_CORRIDORS.map((s) => ({
     ...s,
     accessKeys: [s.id],
@@ -272,6 +277,69 @@ export const CORE_OPERATING_TRACKS: readonly OperatingTrack[] = [
     },
   })),
 ];
+const rawRoutingTracks = rawOperatingTracks.filter(
+  (t) =>
+    !OSM_NETWORK_DATA.legacyRoutes[t.id] &&
+    !schematicRoutes[t.id] &&
+    !legacyIntermediateIds.has(t.id),
+);
+const sectionLimits = deriveSectionSpeedLimits(
+  stationsWithDemand,
+  rawRoutingTracks,
+);
+export const CORE_SECTION_SPEED_COVERAGE = sectionLimits.coverage;
+export const CORE_OPERATING_TRACKS: readonly OperatingTrack[] =
+  rawOperatingTracks.map((track) => {
+    const direct = sectionLimits.byPair.get(
+      speedPairKey(track.originStationId, track.destinationStationId),
+    );
+    const path =
+      direct === undefined
+        ? sectionSpeedPath(
+            track.originStationId,
+            track.destinationStationId,
+            rawRoutingTracks,
+          )
+        : [];
+    const overridden =
+      direct !== undefined ||
+      path.some((edge) =>
+        sectionLimits.byPair.has(
+          speedPairKey(edge.originStationId, edge.destinationStationId),
+        ),
+      );
+    if (!overridden) return track;
+    // Long compatibility edges use the distance-weighted travel-time equivalent, never an arithmetic average.
+    const cap =
+      direct ??
+      Math.round(
+        path.reduce((n, edge) => n + edge.distanceKm, 0) /
+          path.reduce(
+            (n, edge) =>
+              n +
+              edge.distanceKm /
+                (sectionLimits.byPair.get(
+                  speedPairKey(edge.originStationId, edge.destinationStationId),
+                ) ?? edge.trackSpeedLimitKmh),
+            0,
+          ),
+      );
+    return {
+      ...track,
+      trackSpeedLimitKmh: cap,
+      maxSpeedKmh: cap,
+      provenance: {
+        ...track.provenance,
+        source:
+          track.provenance.source +
+          "; user-supplied operating speed sections 2026-10-03",
+        verified: false,
+        notes:
+          track.provenance.notes +
+          " Speed replaced by the user-supplied game cap; applies both directions. Long compatibility corridors use a distance-weighted equivalent. Not an official verified railway restriction.",
+      },
+    };
+  });
 export const CORE_ROUTING_TRACKS = CORE_OPERATING_TRACKS.filter(
   (t) =>
     !OSM_NETWORK_DATA.legacyRoutes[t.id] &&

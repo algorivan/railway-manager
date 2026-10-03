@@ -82,26 +82,69 @@ function operating() {
 const at = (s: CoreState, minute: number) =>
   catchUpCore(s, epoch + ((minute - 420) / 1.5) * 60000);
 
+const roundTripFinish = (s: CoreState) =>
+  Math.ceil(
+    previewCoreRoundTrip(s, s.trainsets[0]!.id, s.services[0]!.id).inbound.end +
+      s.plans[0]!.nextAt -
+      s.minute,
+  ) + 1;
+
 describe("v7 browser operations", () => {
   it("automatically names reusable relations from station codes", () => {
     const s = setup();
-    const next = apply(s, { type: "service", origin: s.hub, destination: "STN_GMR_GAMBIR", category: "Custom" }, "auto-name", epoch);
-    expect(next.services.at(-1)!.name).toBe(coreServiceName(s.hub, "STN_GMR_GAMBIR"));
+    const next = apply(
+      s,
+      {
+        type: "service",
+        origin: s.hub,
+        destination: "STN_GMR_GAMBIR",
+        category: "Custom",
+      },
+      "auto-name",
+      epoch,
+    );
+    expect(next.services.at(-1)!.name).toBe(
+      coreServiceName(s.hub, "STN_GMR_GAMBIR"),
+    );
     expect(next.services.at(-1)!.name).toBe("BD – GMR");
   });
   it("runs once each way on the same relation and keeps location and turnaround across reload", () => {
     let s = operating();
-    const tid = s.trainsets[0]!.id, rid = s.services[0]!.id;
-    s = apply(s, { type: "disableDiagram", trainsetId: tid }, "pause-pp", epoch);
-    const schedule = (reverse: boolean, offset: number, id: string) => apply(s, { type: "schedule", trainsetId: tid, serviceId: rid, reverse, offset, cycle: 1440, roundTrip: false }, id, epoch);
+    const tid = s.trainsets[0]!.id,
+      rid = s.services[0]!.id;
+    s = apply(
+      s,
+      { type: "disableDiagram", trainsetId: tid },
+      "pause-pp",
+      epoch,
+    );
+    const schedule = (reverse: boolean, offset: number, id: string) =>
+      apply(
+        s,
+        {
+          type: "schedule",
+          trainsetId: tid,
+          serviceId: rid,
+          reverse,
+          offset,
+          cycle: 1440,
+          roundTrip: false,
+        },
+        id,
+        epoch,
+      );
     expect(() => schedule(true, 422, "wrong-direction")).toThrow("pilih arah");
     s = schedule(false, 422, "out-once");
-    expect(() => schedule(false, 423, "duplicate")).toThrow("diagram sebelumnya");
+    expect(() => schedule(false, 423, "duplicate")).toThrow(
+      "diagram sebelumnya",
+    );
     const end = forecastCore(s, tid, rid, false, 422).end;
     s = at(s, end + 1);
     expect(s.trainsets[0]!.location).toBe("STN_GMR_GAMBIR");
     expect(s.plans.some((p) => p.active)).toBe(false);
-    expect(() => schedule(true, Math.ceil(end + 2), "early")).toThrow("Jeda persiapan");
+    expect(() => schedule(true, Math.ceil(end + 2), "early")).toThrow(
+      "Jeda persiapan",
+    );
     const departure = Math.ceil(s.trainsets[0]!.readyAt + 1);
     s = schedule(true, departure, "return-once");
     s = restoreCore(serializeCore(s))!;
@@ -114,63 +157,181 @@ describe("v7 browser operations", () => {
   });
   it("saves one trainset pattern across BD–GMR and BD–YK without teleporting or overlaps", () => {
     let s = setup();
-    s = apply(s, { type: "service", origin: s.hub, destination: "STN_YK_YOGYAKARTA", category: "Custom" }, "bd-yk", epoch);
-    const tid = s.trainsets[0]!.id, rid = s.services[0]!.id;
+    s = apply(
+      s,
+      {
+        type: "service",
+        origin: s.hub,
+        destination: "STN_YK_YOGYAKARTA",
+        category: "Custom",
+      },
+      "bd-yk",
+      epoch,
+    );
+    const tid = s.trainsets[0]!.id,
+      rid = s.services[0]!.id;
     const duties = [{ serviceId: rid, reverse: false, offset: 422 }];
     const add = (serviceId: string, reverse: boolean, rest: number) => {
       const last = duties.at(-1)!;
-      const arrival = forecastCore(s, tid, last.serviceId, last.reverse, last.offset).end;
+      const arrival = forecastCore(
+        s,
+        tid,
+        last.serviceId,
+        last.reverse,
+        last.offset,
+      ).end;
       duties.push({ serviceId, reverse, offset: Math.ceil(arrival + rest) });
     };
     add(rid, true, 60);
     add("bd-yk", false, 30);
     const open = [...duties];
     add("bd-yk", true, 60);
-    const action = { type: "diagram" as const, trainsetId: tid, cycle: 2880, duties };
-    const saved = restoreCore(serializeCore(apply(s, action, "pattern", epoch)))!;
+    const action = {
+      type: "diagram" as const,
+      trainsetId: tid,
+      cycle: 2880,
+      duties,
+    };
+    const saved = restoreCore(
+      serializeCore(apply(s, action, "pattern", epoch)),
+    )!;
     expect(saved.plans.filter((p) => p.active)).toHaveLength(4);
     expect(new Set(saved.plans.map((p) => p.trainsetId)).size).toBe(1);
-    expect(() => apply(s, { ...action, duties: open }, "open", epoch)).toThrow("Lokasi");
-    expect(() => apply(s, { ...action, duties: duties.map((d, i) => i === 2 ? { ...d, offset: duties[1]!.offset + 1 } : d) }, "overlap", epoch)).toThrow("jeda");
+    expect(() => apply(s, { ...action, duties: open }, "open", epoch)).toThrow(
+      "Lokasi",
+    );
+    expect(() =>
+      apply(
+        s,
+        {
+          ...action,
+          duties: duties.map((d, i) =>
+            i === 2 ? { ...d, offset: duties[1]!.offset + 1 } : d,
+          ),
+        },
+        "overlap",
+        epoch,
+      ),
+    ).toThrow("jeda");
   });
   it("previews time blocks through midnight without mutating the saved company", () => {
-    const s = setup(), tid = s.trainsets[0]!.id, serviceId = s.services[0]!.id;
+    const s = setup(),
+      tid = s.trainsets[0]!.id,
+      serviceId = s.services[0]!.id;
     const first = forecastCore(s, tid, serviceId, false, 1380);
-    const duties = [{ serviceId, reverse: false, offset: 1380 }, { serviceId, reverse: true, offset: Math.ceil(first.end + 60) }];
+    const duties = [
+      { serviceId, reverse: false, offset: 1380 },
+      { serviceId, reverse: true, offset: Math.ceil(first.end + 60) },
+    ];
     const before = serializeCore(s);
     const preview = previewCoreDiagram(s, tid, 2880, duties);
     expect(preview.issues).toEqual([]);
     expect(preview.runs[0]!.end).toBeGreaterThan(1440);
     expect(preview.runs[1]!.start).toBeGreaterThan(1440);
     expect(serializeCore(s)).toBe(before);
-    const invalid = previewCoreDiagram(s, tid, 2880, [duties[0]!, { ...duties[1]!, offset: 1400 }]);
+    const invalid = previewCoreDiagram(s, tid, 2880, [
+      duties[0]!,
+      { ...duties[1]!, offset: 1400 },
+    ]);
     expect(invalid.issues.some((issue) => issue.includes("jeda"))).toBe(true);
-    expect(() => apply(s, { type: "diagram", trainsetId: tid, cycle: 2880, duties: invalid.duties }, "bad-blocks", epoch)).toThrow(invalid.issues[0]);
+    expect(() =>
+      apply(
+        s,
+        {
+          type: "diagram",
+          trainsetId: tid,
+          cycle: 2880,
+          duties: invalid.duties,
+        },
+        "bad-blocks",
+        epoch,
+      ),
+    ).toThrow(invalid.issues[0]);
   });
   it("makes intermediate stations selectable endpoints and honors optional stops/dwell", () => {
     let s = setup();
-    const station = findCorePath(s.hub, "STN_GMR_GAMBIR", s.access).stations[1]!;
-    const destination = findCorePath(s.hub, "STN_GMR_GAMBIR", s.access).stations[2]!;
-    s = apply(s, { type: "service", origin: s.hub, destination, category: "Local" }, "with-stop", epoch);
-    s = apply(s, { type: "service", origin: s.hub, destination, category: "Local", stops: [s.hub, destination] }, "pass-stop", epoch);
-    const stopped = forecastCore(s, s.trainsets[0]!.id, "with-stop"), passed = forecastCore(s, s.trainsets[0]!.id, "pass-stop");
+    const station = findCorePath(s.hub, "STN_GMR_GAMBIR", s.access)
+      .stations[1]!;
+    const destination = findCorePath(s.hub, "STN_GMR_GAMBIR", s.access)
+      .stations[2]!;
+    s = apply(
+      s,
+      { type: "service", origin: s.hub, destination, category: "Local" },
+      "with-stop",
+      epoch,
+    );
+    s = apply(
+      s,
+      {
+        type: "service",
+        origin: s.hub,
+        destination,
+        category: "Local",
+        stops: [s.hub, destination],
+      },
+      "pass-stop",
+      epoch,
+    );
+    const stopped = forecastCore(s, s.trainsets[0]!.id, "with-stop"),
+      passed = forecastCore(s, s.trainsets[0]!.id, "pass-stop");
     expect(stopped.legs[0]!.to).toBe(station);
     expect(stopped.legs[0]!.commercialStop).toBe(true);
     expect(passed.legs[0]!.commercialStop).toBe(false);
-    expect(stopped.end - stopped.start).toBeCloseTo(stopped.legs.reduce((sum, leg) => sum + leg.minutes, 0) + 3);
+    expect(stopped.end - stopped.start).toBeCloseTo(
+      stopped.legs.reduce((sum, leg) => sum + leg.minutes, 0) + 3,
+    );
     expect(stopped.end).toBeGreaterThan(passed.end);
-    s = apply(s, { type: "service", origin: s.hub, destination: station, category: "Local" }, "small-endpoint", epoch);
+    s = apply(
+      s,
+      {
+        type: "service",
+        origin: s.hub,
+        destination: station,
+        category: "Local",
+      },
+      "small-endpoint",
+      epoch,
+    );
     expect(s.services.at(-1)!.stations.at(-1)).toBe(station);
-    expect(restoreCore(serializeCore(s))!.services.at(-1)!.id).toBe("small-endpoint");
+    expect(restoreCore(serializeCore(s))!.services.at(-1)!.id).toBe(
+      "small-endpoint",
+    );
   });
   it("preserves old saved corridor services and their running train after stations are added", () => {
     let s = setup();
     s.services[0]!.stations = [s.hub, "STN_GMR_GAMBIR"];
     s.services[0]!.segments = ["SEG_GMR_BD"];
     s.services[0]!.stops = [...s.services[0]!.stations];
-    s = apply(s, { type: "fuel", station: s.hub, liters: 16000, bucket: fuelQuote(epoch).bucket }, "legacy-fuel", epoch);
-    s = apply(s, { type: "fill", trainsetId: s.trainsets[0]!.id }, "legacy-fill", epoch);
-    s = apply(s, { type: "schedule", trainsetId: s.trainsets[0]!.id, serviceId: s.services[0]!.id, cycle: 1440, offset: 422, roundTrip: false }, "legacy-plan", epoch);
+    s = apply(
+      s,
+      {
+        type: "fuel",
+        station: s.hub,
+        liters: 16000,
+        bucket: fuelQuote(epoch).bucket,
+      },
+      "legacy-fuel",
+      epoch,
+    );
+    s = apply(
+      s,
+      { type: "fill", trainsetId: s.trainsets[0]!.id },
+      "legacy-fill",
+      epoch,
+    );
+    s = apply(
+      s,
+      {
+        type: "schedule",
+        trainsetId: s.trainsets[0]!.id,
+        serviceId: s.services[0]!.id,
+        cycle: 1440,
+        offset: 422,
+        roundTrip: false,
+      },
+      "legacy-plan",
+      epoch,
+    );
     s = at(s, 430);
     s = restoreCore(serializeCore(s))!;
     expect(s.runs[0]!.legs.map((leg) => leg.segmentId)).toEqual(["SEG_GMR_BD"]);
@@ -181,14 +342,28 @@ describe("v7 browser operations", () => {
   it("preserves numbered segments from the first intermediate-station release", () => {
     let s = setup();
     const relation = s.services[0]!;
-    relation.stations = [s.hub, "STN_OSMN10693460259", "STN_OSMN6483392223", "STN_OSMN7835804886", "STN_OSMN1228413279", "STN_OSMN3469731328", "STN_GMR_GAMBIR"];
+    relation.stations = [
+      s.hub,
+      "STN_OSMN10693460259",
+      "STN_OSMN6483392223",
+      "STN_OSMN7835804886",
+      "STN_OSMN1228413279",
+      "STN_OSMN3469731328",
+      "STN_GMR_GAMBIR",
+    ];
     relation.segments = [5, 4, 3, 2, 1, 0].map((i) => `SEG_GMR_BD:stop:${i}`);
     relation.stops = [...relation.stations];
     const restored = restoreCore(serializeCore(s))!;
-    const forecast = forecastCore(restored, restored.trainsets[0]!.id, relation.id);
+    const forecast = forecastCore(
+      restored,
+      restored.trainsets[0]!.id,
+      relation.id,
+    );
     expect(forecast.legs).toHaveLength(6);
     expect(forecast.legs[0]!.to).toBe("STN_OSMN10693460259");
-    expect(forecast.legs.reduce((sum, leg) => sum + leg.km, 0)).toBeCloseTo(160);
+    expect(forecast.legs.reduce((sum, leg) => sum + leg.km, 0)).toBeCloseTo(
+      160,
+    );
     expect(forecast.destination).toBe("STN_GMR_GAMBIR");
   });
   it("distinguishes passed stations from commercial stops and does not add dwell to a pass", () => {
@@ -212,14 +387,28 @@ describe("v7 browser operations", () => {
     expect(run.end - run.start).toBeCloseTo(
       run.legs.reduce((v, l) => v + l.minutes, 0),
     );
-    expect(run.bookings.every((b) => b.from === 0 && b.to === run.legs.length)).toBe(true);
+    expect(
+      run.bookings.every((b) => b.from === 0 && b.to === run.legs.length),
+    ).toBe(true);
   });
   it("checks the whole Local path's province, not just matching endpoint provinces", () => {
     // Same-province endpoints forced through East Java; the new Cikampek connection
     // correctly lets Bandung–Cirebon stay within West Java now.
     const s = createCoreState(epoch, "STN_SMT_SEMARANGTAWANG");
     s.access = ["SEG_SMT_SGU", "SEG_SLO_SGU"];
-    expect(() => apply(s, { type: "service", origin: s.hub, destination: "STN_SLO_SOLOBALAPAN", category: "Local" }, "local", epoch)).toThrow("provinsi");
+    expect(() =>
+      apply(
+        s,
+        {
+          type: "service",
+          origin: s.hub,
+          destination: "STN_SLO_SOLOBALAPAN",
+          category: "Local",
+        },
+        "local",
+        epoch,
+      ),
+    ).toThrow("provinsi");
     const central = createCoreState(epoch, "STN_SMT_SEMARANGTAWANG");
     expect(
       apply(
@@ -318,20 +507,22 @@ describe("v7 browser operations", () => {
   });
   it("dispatches automatically and settles each run exactly once", () => {
     const s = operating();
-    const done = at(s, 800);
+    const finish = roundTripFinish(s),
+      done = at(s, finish);
     expect(done.runs.filter((r) => r.status === "completed")).toHaveLength(2);
     expect(done.trainsets[0]!.location).toBe(s.hub);
     expect(done.ledger.filter((x) => x.id.endsWith("settlement"))).toHaveLength(
       2,
     );
-    expect(at(done, 800)).toEqual(done);
+    expect(at(done, finish)).toEqual(done);
     expect(done.runs.every((r) => r.passengerKm <= r.seatKm)).toBe(true);
   });
   it("matches incremental and offline event processing", () => {
     const s = operating();
     let incremental = s;
-    for (let m = 421; m <= 800; m++) incremental = at(incremental, m);
-    expect(serializeCore(incremental)).toEqual(serializeCore(at(s, 800)));
+    const finish = roundTripFinish(s);
+    for (let m = 421; m <= finish; m++) incremental = at(incremental, m);
+    expect(serializeCore(incremental)).toEqual(serializeCore(at(s, finish)));
   });
   it("uses the same pace after reload and does not duplicate income", () => {
     const s = at(operating(), 550);
@@ -366,13 +557,13 @@ describe("v7 browser operations", () => {
     const s = operating();
     s.depots[0]!.stock = 0;
     expect(
-      at(s, 800).runs.filter((r) => r.status === "completed"),
+      at(s, roundTripFinish(s)).runs.filter((r) => r.status === "completed"),
     ).toHaveLength(2);
   });
   it("separates fuel purchase cash, transfer and consumption expenses", () => {
     const s = operating();
     const before = s.cash;
-    const after = at(s, 800);
+    const after = at(s, roundTripFinish(s));
     const fuelExpenses = after.ledger.filter((e) =>
       e.label.includes("konsumsi fuel"),
     );
@@ -386,7 +577,16 @@ describe("v7 browser operations", () => {
     expect(after.cash).toBeCloseTo(before + cashMovement, 5);
     const allLiters =
       after.depots[0]!.stock + after.units.reduce((v, u) => v + u.fuel, 0);
-    expect(allLiters).toBeCloseTo(16000 - 320 * 2.8, 5);
+    const forecast = previewCoreRoundTrip(
+      s,
+      s.trainsets[0]!.id,
+      s.services[0]!.id,
+    );
+    expect(after.runs.filter((r) => r.status === "completed")).toHaveLength(2);
+    expect(allLiters).toBeCloseTo(
+      16000 - forecast.outbound.fuelLiters - forecast.inbound.fuelLiters,
+      5,
+    );
   });
   it("rejects expired quotes and negative/over-capacity purchases", () => {
     const s = setup();
@@ -523,7 +723,14 @@ describe("v7 browser operations", () => {
     );
     const duties = [
       { serviceId: s.services[0]!.id, reverse: false, offset: 422 },
-      { serviceId: "second", reverse: false, offset: Math.ceil(forecastCore(s, s.trainsets[0]!.id, s.services[0]!.id, false, 422).end + 31) },
+      {
+        serviceId: "second",
+        reverse: false,
+        offset: Math.ceil(
+          forecastCore(s, s.trainsets[0]!.id, s.services[0]!.id, false, 422)
+            .end + 31,
+        ),
+      },
     ];
     const planned = apply(
       s,
@@ -595,13 +802,22 @@ describe("v7 browser operations", () => {
     s = apply(s, { type: "recall", runId: id }, "recall-request", s.anchorMs);
     const firstArrival = s.runs[0]!.nextEvent;
     const safeStation = s.runs[0]!.legs[s.runs[0]!.leg]!.to;
-    const forwardKm = s.runs[0]!.legs.slice(0, s.runs[0]!.leg + 1).reduce((sum, leg) => sum + leg.km, 0);
+    const forwardKm = s.runs[0]!.legs.slice(0, s.runs[0]!.leg + 1).reduce(
+      (sum, leg) => sum + leg.km,
+      0,
+    );
     const outbound = at(s, firstArrival + 1);
     expect(outbound.trainsets[0]!.location).toBe(safeStation);
     expect(outbound.runs[0]!.status).toBe("running");
     expect(outbound.runs[0]!.revenue).toBe(0);
-    const returnKm = outbound.runs[0]!.legs.reduce((sum, leg) => sum + leg.km, 0);
-    const fuelPerKm = coreFormation(s, s.trainsets[0]!).products.reduce((sum, product) => sum + product.litersPerKm, 0);
+    const returnKm = outbound.runs[0]!.legs.reduce(
+      (sum, leg) => sum + leg.km,
+      0,
+    );
+    const fuelPerKm = coreFormation(s, s.trainsets[0]!).products.reduce(
+      (sum, product) => sum + product.litersPerKm,
+      0,
+    );
     const returned = at(outbound, outbound.runs[0]!.end + 1);
     expect(returned.trainsets[0]!.location).toBe(s.hub);
     expect(returned.runs[0]!.status).toBe("completed");

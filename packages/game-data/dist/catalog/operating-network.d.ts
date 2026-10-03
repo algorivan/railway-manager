@@ -70,6 +70,13 @@ export declare const CORE_GAME_CORRIDORS: {
     isDoubleTrack: boolean;
     trackGaugeMm: number;
 }[];
+export declare const CORE_SECTION_SPEED_COVERAGE: {
+    fromCode: "GMR" | "SMT" | "YK" | "SLO" | "CKP" | "PWK" | "CMI" | "SB" | "KYA" | "WT" | "CCL" | "CAW" | "MA" | "MN" | "KTS" | "WO" | "GD" | "BL" | "KPN" | "BG" | "PB" | "LEC" | "MLS" | "KK" | "KTK" | "LDO" | "KBR" | "RGP";
+    toCode: "SMT" | "YK" | "SLO" | "CKP" | "PWK" | "CMI" | "SB" | "KYA" | "WT" | "CCL" | "CAW" | "MA" | "MN" | "KTS" | "GD" | "BL" | "KPN" | "PB" | "LEC" | "MLS" | "KK" | "KTK" | "LDO" | "KBR" | "RGP" | "KTG";
+    speedKmh: 30 | 110 | 90 | 60 | 45;
+    distanceKm: number;
+    segmentIds: string[];
+}[];
 export declare const CORE_OPERATING_TRACKS: readonly OperatingTrack[];
 export declare const CORE_ROUTING_TRACKS: OperatingTrack[];
 export declare const CORE_OPERATING_STATIONS: readonly OperatingStation[];

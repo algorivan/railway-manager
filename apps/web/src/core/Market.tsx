@@ -1,148 +1,306 @@
 import { useState } from "react";
 import { CORE_PRODUCTS } from "@railway/game-data";
 import { coreProduct, stationName, type CoreState } from "@railway/simulation";
-import { Asset, Card, compact, remaining, type Act } from "./presentation";
-import { CompactWorkspace, PagedList, ResponsiveColumns } from "./Compact";
-export function Market({ state: s, act }: { state: CoreState; act: Act }) {
-  const [productId, setProduct] = useState("cc201"),
-    [qty, setQty] = useState(1),
+import { Asset, compact, remaining, type Act } from "./presentation";
+import { ScrollList } from "./Compact";
+import { readPreference, writePreference } from "./feedback";
+const CART_KEY = "railway-manager-cart-v1";
+type Item = { productId: string; quantity: number };
+const products = CORE_PRODUCTS.filter((p) => !p.id.endsWith("retrofit"));
+const categories = [
+  { id: "loco", name: "Lokomotif" },
+  { id: "coach", name: "Penumpang" },
+  { id: "cargo", name: "Kargo" },
+] as const;
+function readCart(): Item[] {
+  try {
+    const value: unknown = JSON.parse(readPreference(CART_KEY) ?? "[]");
+    if (!Array.isArray(value)) return [];
+    const seen = new Set<string>();
+    return value.filter((item): item is Item => {
+      if (
+        !item ||
+        typeof item !== "object" ||
+        !products.some((p) => p.id === item.productId) ||
+        !Number.isInteger(item.quantity) ||
+        item.quantity < 1 ||
+        item.quantity > 20 ||
+        seen.has(item.productId)
+      )
+        return false;
+      seen.add(item.productId);
+      return true;
+    });
+  } catch {
+    return [];
+  }
+}
+export function Market({
+  state: s,
+  act,
+  notify,
+}: {
+  state: CoreState;
+  act: Act;
+  notify: (message: string, failed?: boolean) => void;
+}) {
+  const [tab, setTab] = useState("catalog"),
+    [category, setCategory] = useState("loco"),
+    [cart, setCart] = useState<Item[]>(readCart),
     [depot, setDepot] = useState(s.hub);
-  const p = coreProduct(productId),
-    pending = s.orders.filter((o) => !o.accepted);
+  const pending = s.orders.filter((o) => !o.accepted),
+    count = cart.reduce((n, item) => n + item.quantity, 0),
+    total = cart.reduce(
+      (n, item) => n + coreProduct(item.productId).price * item.quantity,
+      0,
+    );
+  const update = (next: Item[]) => {
+    setCart(next);
+    writePreference(CART_KEY, JSON.stringify(next));
+  };
+  const add = (productId: string) => {
+    const current = cart.find((item) => item.productId === productId);
+    if (current?.quantity === 20) {
+      notify("Maksimum 20 unit per jenis dalam satu checkout.", true);
+      return;
+    }
+    update(
+      current
+        ? cart.map((item) =>
+            item.productId === productId
+              ? { ...item, quantity: item.quantity + 1 }
+              : item,
+          )
+        : [...cart, { productId, quantity: 1 }],
+    );
+    notify(`${coreProduct(productId).name} ditambahkan ke keranjang.`);
+  };
   return (
-    <CompactWorkspace>
-      <Card title="Beli sarana">
-        <ResponsiveColumns>
-          <div>
-            <label>
-              Depo penerima
-              <select value={depot} onChange={(e) => setDepot(e.target.value)}>
-                {s.depots.map((d) => (
-                  <option key={d.station} value={d.station}>
-                    {stationName(d.station)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Sarana
-              <select
-                aria-label="Sarana pasar"
-                value={productId}
-                onChange={(e) => {
-                  setProduct(e.target.value);
-                  setQty(
-                    e.target.value === "ec-standard"
-                      ? 4
-                      : e.target.value.startsWith("cargo-")
-                        ? 2
-                        : 1,
-                  );
-                }}
+    <div className="compact-workspace market-workspace">
+      <div className="workspace-tabs" role="tablist" aria-label="Pasar sarana">
+        {[
+          ["catalog", "Katalog"],
+          ["cart", `Keranjang (${count})`],
+          ["orders", `Pesanan (${pending.length})`],
+        ].map(([id, title]) => (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id!)}
+          >
+            {title}
+          </button>
+        ))}
+      </div>
+      {tab === "catalog" && (
+        <section className="shop-panel" aria-label="Katalog sarana">
+          <div
+            className="category-tabs"
+            role="tablist"
+            aria-label="Kategori sarana"
+          >
+            {categories.map((c) => (
+              <button
+                key={c.id}
+                role="tab"
+                aria-selected={category === c.id}
+                onClick={() => setCategory(c.id)}
               >
-                {CORE_PRODUCTS.filter((p) => !p.id.endsWith("retrofit")).map(
-                  (p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} · {compact(p.price)}
-                    </option>
-                  ),
-                )}
-              </select>
-            </label>
-            <label>
-              Jumlah
-              <input
-                aria-label={`Jumlah ${p.name}`}
-                type="number"
-                min={1}
-                max={20}
-                value={qty}
-                onChange={(e) => setQty(Number(e.target.value))}
-              />
-            </label>
+                {c.name}
+              </button>
+            ))}
+          </div>
+          <div
+            className="catalog-grid detail-scroll"
+            tabIndex={0}
+            aria-label="Daftar sarana"
+          >
+            {products
+              .filter((p) =>
+                category === "coach"
+                  ? ["coach", "generator", "dining"].includes(p.kind)
+                  : p.kind === category,
+              )
+              .map((p) => (
+                <article className="product-card" key={p.id}>
+                  <Asset id={p.id} />
+                  <h3>{p.name}</h3>
+                  <small>
+                    {p.cargoTons
+                      ? `${p.cargoTons} ton`
+                      : p.seats
+                        ? `${p.seats} kursi`
+                        : p.kind === "generator"
+                          ? "Pembangkit"
+                          : p.kind === "dining"
+                            ? "Kereta makan"
+                            : `${p.tank.toLocaleString("id-ID")} L`}{" "}
+                    · {p.speed} km/jam
+                  </small>
+                  <button
+                    className="primary"
+                    aria-label={`Tambah ${p.name} ke keranjang`}
+                    onClick={() => add(p.id)}
+                  >
+                    {compact(p.price)} <span>＋</span>
+                  </button>
+                  {cart.some((item) => item.productId === p.id) && (
+                    <small className="in-cart">
+                      {cart.find((item) => item.productId === p.id)!.quantity}{" "}
+                      di keranjang
+                    </small>
+                  )}
+                </article>
+              ))}
+          </div>
+          <footer className="shop-footer">
+            <span>
+              {count} unit · <b>{compact(total)}</b>
+            </span>
             <button
               className="primary"
-              onClick={() =>
-                act(
-                  {
-                    type: "order",
-                    productId,
-                    quantity: qty,
-                    station: depot,
-                    starter: true,
-                  },
-                  "Pesanan disimpan. Buka tab Pesanan untuk menerima sarana saat siap.",
-                )
-              }
+              disabled={!count}
+              onClick={() => setTab("cart")}
             >
-              Pesan · {compact(p.price * qty)}
+              Lihat keranjang →
             </button>
-          </div>
-          <div>
-            <Asset id={p.id} />
-            <h2>{p.name}</h2>
-            <div className="stats">
-              <div>
-                <strong>
-                  {p.cargoTons ? `${p.cargoTons} t` : p.seats || "—"}
-                </strong>
-                <small>{p.cargoTons ? "Muatan per gerbong" : "Kursi"}</small>
-              </div>
-              <div>
-                <strong>{p.speed}</strong>
-                <small>km/jam maksimum</small>
-              </div>
-              <div>
-                <strong>{p.tank.toLocaleString("id-ID")}</strong>
-                <small>Tangki game (L)</small>
-              </div>
-            </div>
-            <p>
-              Harga {compact(p.price)} per unit · pengantaran{" "}
-              {p.deliveryMinutes} menit game.
-            </p>
-            <p className="muted">
-              Paket pertama 1 CC201 + 4 Ekonomi Standar + 1 pembangkit tersedia
-              langsung di hub (424 kursi). Untuk kargo: lokomotif + sedikitnya 2
-              gerbong sesuai jenis kontrak; tanpa kereta penumpang.
-            </p>
-            <small className="muted">
-              Harga, tangki dan durasi disesuaikan untuk game. Ilustrasi kargo
-              adalah konsep.
-            </small>
-          </div>
-        </ResponsiveColumns>
-      </Card>
-      <Card title={`Pesanan (${pending.length})`}>
-        {!pending.length && <p>Belum ada pesanan menunggu acceptance.</p>}
-        <PagedList
-          items={[...pending].reverse()}
-          render={(o) => (
-            <div className="list-row" key={o.id}>
-              <div>
-                <b>
-                  {o.quantity} × {coreProduct(o.productId).name}
-                </b>
-                <small>
-                  {stationName(o.station)} ·{" "}
-                  {o.due <= s.minute ? "Siap diterima" : remaining(o.due, s)}
-                </small>
-              </div>
+          </footer>
+        </section>
+      )}
+      {tab === "cart" && (
+        <section className="shop-panel" aria-label="Keranjang sarana">
+          <b>Depo penerima</b>
+          <div className="depot-chips detail-scroll">
+            {s.depots.map((d) => (
               <button
-                disabled={o.due > s.minute}
-                onClick={() =>
-                  act(
-                    { type: "accept", orderId: o.id },
-                    "Sarana diterima. Rakit trainset lewat Armada atau kelola inventori di Depo.",
-                  )
-                }
+                key={d.station}
+                aria-pressed={depot === d.station}
+                onClick={() => setDepot(d.station)}
               >
-                Terima
+                {stationName(d.station)}
               </button>
-            </div>
+            ))}
+          </div>
+          <div
+            className="cart-items detail-scroll"
+            tabIndex={0}
+            aria-label="Isi keranjang"
+          >
+            {!cart.length && <p>Keranjang kosong. Pilih sarana di Katalog.</p>}
+            {cart.map((item) => {
+              const p = coreProduct(item.productId);
+              return (
+                <article key={p.id} className="cart-item">
+                  <Asset id={p.id} />
+                  <div>
+                    <b>{p.name}</b>
+                    <small>{compact(p.price)} / unit</small>
+                  </div>
+                  <div className="quantity-control">
+                    <button
+                      aria-label={`Kurangi ${p.name}`}
+                      onClick={() =>
+                        update(
+                          cart
+                            .map((i) =>
+                              i.productId === p.id
+                                ? { ...i, quantity: i.quantity - 1 }
+                                : i,
+                            )
+                            .filter((i) => i.quantity > 0),
+                        )
+                      }
+                    >
+                      −
+                    </button>
+                    <span aria-label={`Jumlah ${p.name}`}>{item.quantity}</span>
+                    <button
+                      aria-label={`Tambah jumlah ${p.name}`}
+                      disabled={item.quantity >= 20}
+                      onClick={() => add(p.id)}
+                    >
+                      ＋
+                    </button>
+                  </div>
+                  <button
+                    aria-label={`Hapus ${p.name}`}
+                    onClick={() =>
+                      update(cart.filter((i) => i.productId !== p.id))
+                    }
+                  >
+                    ✕
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+          <small>
+            Kas {compact(s.cash)} · paket pertama CC201 + 4 Ekonomi Standar +
+            pembangkit langsung tersedia di hub.
+          </small>
+          {total > s.cash && (
+            <p className="warning-text" role="status">
+              Kas belum cukup. Kurangi isi keranjang.
+            </p>
           )}
-        />
-      </Card>
-    </CompactWorkspace>
+          <footer className="shop-footer">
+            <span>
+              {count} unit · <b>{compact(total)}</b>
+            </span>
+            <button
+              className="primary"
+              disabled={!count || total > s.cash}
+              onClick={() => {
+                if (
+                  act(
+                    { type: "orderCart", station: depot, items: cart },
+                    "Checkout berhasil. Terima sarana siap di tab Pesanan.",
+                  )
+                ) {
+                  update([]);
+                  setTab("orders");
+                }
+              }}
+            >
+              Checkout · {compact(total)}
+            </button>
+          </footer>
+        </section>
+      )}
+      {tab === "orders" && (
+        <section className="shop-panel" aria-label="Pesanan sarana">
+          {!pending.length && <p>Belum ada pesanan menunggu penerimaan.</p>}
+          <ScrollList
+            items={[...pending].reverse()}
+            render={(o) => (
+              <div className="list-row" key={o.id}>
+                <Asset id={o.productId} />
+                <div>
+                  <b>
+                    {o.quantity} × {coreProduct(o.productId).name}
+                  </b>
+                  <small>
+                    {stationName(o.station)} ·{" "}
+                    {o.due <= s.minute ? "Siap diterima" : remaining(o.due, s)}
+                  </small>
+                </div>
+                <button
+                  disabled={o.due > s.minute}
+                  onClick={() =>
+                    act(
+                      { type: "accept", orderId: o.id },
+                      "Sarana diterima. Rakit trainset di Armada atau periksa inventori di Depo.",
+                    )
+                  }
+                >
+                  Terima
+                </button>
+              </div>
+            )}
+          />
+        </section>
+      )}
+    </div>
   );
 }

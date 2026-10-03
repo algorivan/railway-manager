@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, AlertTriangle, X } from "lucide-react";
+import { StationAudio } from "./station-audio";
 import type { CoreAction } from "@railway/simulation";
 
 const SOUND_KEY = "railway-manager-sound";
@@ -23,6 +24,7 @@ export const actionMessages: Record<CoreAction["type"], string> = {
   enableMissions: "Misi dan reward perusahaan diaktifkan.",
   hub: "Hub awal dipilih.",
   order: "Pesanan tercatat. Terima sarana setelah siap.",
+  orderCart: "Checkout berhasil. Pesanan tercatat untuk depo penerima.",
   accept: "Sarana diterima ke inventori.",
   formation: "Formasi trainset disimpan.",
   service: "Relasi baru dibuat. Atur tarif dan jadwal keberangkatan.",
@@ -34,7 +36,8 @@ export const actionMessages: Record<CoreAction["type"], string> = {
   resume: "Dinas dilanjutkan.",
   stop: "Permintaan berhenti dicatat untuk stasiun aman berikutnya.",
   recall: "Permintaan perjalanan pulang dicatat.",
-  cargoContract: "Kontrak kargo diterima. Dana investasi tercatat terpisah dari pendapatan operasi.",
+  cargoContract:
+    "Kontrak kargo diterima. Dana investasi tercatat terpisah dari pendapatan operasi.",
   fuel: "Fuel dibeli ke dipo. Isi tangki dari detail trainset.",
   recruitAuto:
     "SDM otomatis direkrut dan ditugaskan ke seluruh trainset yang membutuhkan kru.",
@@ -54,56 +57,33 @@ type Notice = { id: number; message: string; failed: boolean };
 export function useFeedback() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [sound, setSound] = useState(() => readPreference(SOUND_KEY) !== "off");
-  const audio = useRef<AudioContext | null>(null);
+  const audio = useRef<StationAudio | null>(null);
   const counter = useRef(0);
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    const station = new StationAudio(readPreference(SOUND_KEY) !== "off");
+    audio.current = station;
+    const gesture = () => {
+      void station.unlock();
+    };
+    const visibility = () => station.visibility();
+    document.addEventListener("pointerdown", gesture, true);
+    document.addEventListener("keydown", gesture, true);
+    document.addEventListener("visibilitychange", visibility);
+    return () => {
       timers.current.forEach(clearTimeout);
-      void audio.current?.close().catch(() => {});
-    },
-    [],
-  );
-  const play = (failed: boolean) => {
-    if (!sound) return;
-    try {
-      // Created only during a player gesture; never autoplay on page load.
-      const context = (audio.current ??= new AudioContext());
-      const tone = () => {
-        const start = context.currentTime;
-        (failed ? [330, 220] : [523, 784]).forEach((frequency, index) => {
-          const oscillator = context.createOscillator(),
-            gain = context.createGain();
-          oscillator.type = "sine";
-          oscillator.frequency.value = frequency;
-          const at = start + index * 0.12;
-          gain.gain.setValueAtTime(0, at);
-          gain.gain.linearRampToValueAtTime(0.08, at + 0.015);
-          gain.gain.exponentialRampToValueAtTime(0.001, at + 0.16);
-          oscillator.connect(gain);
-          gain.connect(context.destination);
-          oscillator.start(at);
-          oscillator.stop(at + 0.18);
-          oscillator.onended = () => {
-            oscillator.disconnect();
-            gain.disconnect();
-          };
-        });
-      };
-      if (context.state === "suspended")
-        void context
-          .resume()
-          .then(tone)
-          .catch(() => {});
-      else if (context.state === "running") tone();
-    } catch {
-      /* Visual feedback remains available without browser audio. */
-    }
-  };
+      document.removeEventListener("pointerdown", gesture, true);
+      document.removeEventListener("keydown", gesture, true);
+      document.removeEventListener("visibilitychange", visibility);
+      station.dispose();
+      audio.current = null;
+    };
+  }, []);
+  useEffect(() => audio.current?.setEnabled(sound), [sound]);
   const notify = (message: string, failed = false, audible = true) => {
     const id = ++counter.current;
     setNotices((items) => [...items.slice(-2), { id, message, failed }]);
-    if (audible) play(failed);
+    if (audible) audio.current?.feedback(failed);
     if (!failed) {
       const timer = setTimeout(() => {
         setNotices((items) => items.filter((item) => item.id !== id));
@@ -119,6 +99,7 @@ export function useFeedback() {
     toggleSound: () =>
       setSound((value) => {
         writePreference(SOUND_KEY, value ? "off" : "on");
+        audio.current?.setEnabled(!value);
         return !value;
       }),
     dismiss: (id: number) =>
@@ -139,11 +120,7 @@ export function Feedback({
           key={item.id}
           className={`feedback-toast ${item.failed ? "failed" : "succeeded"}`}
         >
-          {item.failed ? (
-            <AlertTriangle size={21} />
-          ) : (
-            <CheckCircle2 size={21} />
-          )}
+          {item.failed ? <AlertTriangle size={21} /> : <CheckCircle2 size={21} />}
           <div role={item.failed ? "alert" : "status"}>
             <b>{item.failed ? "Tindakan gagal" : "Berhasil"}</b>
             <p>{item.message}</p>

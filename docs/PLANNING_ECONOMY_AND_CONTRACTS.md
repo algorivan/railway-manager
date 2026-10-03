@@ -4,7 +4,7 @@ This revision keeps the existing clock (Realism 1× / Casual 1.5×). Progress co
 
 ## Management flow
 
-The flush-left, collapsible sidebar only monitors positions, speeds, arrivals and trip progress. The bottom-right vertical dock opens centered management dialogs for Peta, Jadwal, Armada, Pasar, Kantor, Depo and the unified mission onboarding. Tabs, product/unit selectors and paged lists replace long stacked management pages. The HUD uses a custom Indonesia Railway Manager rail mark, XP progress, ten reputation stars with a percentage and the game clock.
+The flush-left, collapsible sidebar only monitors positions, speeds, arrivals and trip progress. The bottom-right vertical dock opens management dialogs beside the dock on the right, within the right half of desktop screens for Peta, Jadwal, Armada, Pasar, Kantor, Depo and the unified mission onboarding. Tabs switch compact sections; catalogues, inventory grids, tables and reports scroll within bounded detail containers. The dialog itself does not scroll. The HUD uses a custom Indonesia Railway Manager rail mark, XP progress, ten reputation stars with a percentage and the game clock.
 
 Jadwal has three tabs:
 
@@ -65,3 +65,16 @@ Disconnected stations have no nearest hub/distance and use `near = 0`. Proximity
 ## Future leaderboard
 
 No public leaderboard or authoritative server is implemented in this browser-first build. New companies record economy version 2; old checkpoints without a version are legacy/mixed-balance companies. A later server should compare equal game-time windows and balance versions, with separate Realism/Casual cohorts. Suitable operating scores include delivered passenger/ton-kilometres, contribution after operating expenses and punctuality, excluding setup investment, mission rewards and completion gifts. Bank balance is unsuitable as the primary rank because capital grants are deliberate. A server must validate time, contracts and saves before browser-editable results can be ranked. Development expenses such as maintenance/marketing and late/recall costs must also be included when defining an operating-profit ranking.
+
+
+## Catalogue, mission and map interaction
+
+Pasar → Katalog uses locomotive, passenger/support-coach and cargo categories. Price buttons add one unit to a draft basket, without charging cash. The basket is retained in browser preferences across menu closure/reload; quantity is limited to 20 per product. Keranjang selects a receiving depot and submits one atomic `orderCart` action. If any line fails, the original save and cash remain unchanged. Successful checkout creates uniquely identified orders, empties the basket and opens Pesanan. Starter eligibility and later delivery times remain unchanged. Acceptance is still required before units enter inventory. Depo and formation selection show all units in grids without pagination; condition and maintenance actions stay accessible below the grid.
+
+The mission screen uses nine selectable tiles, current goal, XP/reward and one action button. Company setup retains explicit depot price and hub selection, with shorter copy. Station ambience is synthesized locally, with the first-quarter Westminster melody every 18 seconds, after a browser interaction. Suara mutes ambience, chimes and feedback together; hidden pages pause audio and timers. No audio files or external audio requests are required.
+
+Jadwal defaults to its leftmost Relasi tab. “Pilih asal & tujuan di peta” temporarily exposes the map, guides origin then destination, and returns to the retained relation form. Hover shows passenger catchment potential and remaining active cargo-contract deliveries and estimated tonnage; click/tap opens the same metrics and a selection button. Metrics are game values, not measured Indonesian station freight demand; no active contract means zero outstanding cargo. Tonnage is estimated from the assigned cargo trainset capacity, or the contract minimum of 80 tons when a trainset is not yet assigned; the contract target itself counts completed deliveries. Keyboard users may focus a station point and press Enter, or use the searchable station fields. “Perbesar area” separates nearby points. The map search focuses a station area without selecting an endpoint; the player still chooses the point and confirms in its popup. A route with unopened sections reports failure and offers “Buka & beli lintas”, retaining draft endpoints and stops while network management is open. Existing expansion eligibility (one completed PP, connected track, cash) still applies.
+
+The scheduling footer estimates fuel for all draft departures including returns. Daily patterns show L/day; two/three-day patterns show the daily average plus total pattern fuel; one-off travel shows L/trip. It is a consumption forecast, not a fuel purchase or a guarantee of available tank/depot stock.
+
+The user-supplied 29 [speed sections](SECTION_SPEED_LIMITS.md) now replace the earlier provisional caps. Scheduling forecasts sum distance-based motion times at each section’s cap with rolling-stock limits, acceleration, braking and dwell.

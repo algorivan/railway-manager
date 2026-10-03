@@ -1,20 +1,15 @@
-import { useState } from "react";
 import {
   coreRunMotion,
   stationName,
   type CoreState,
 } from "@railway/simulation";
 import { clock } from "./presentation";
-import { Pager } from "./Compact";
+
 export function FleetMonitor({ state: s }: { state: CoreState }) {
-  const [page, setPage] = useState(0),
-    size = 4,
-    pages = Math.max(1, Math.ceil(s.trainsets.length / size)),
-    current = Math.min(page, pages - 1);
   return (
     <div className="fleet-monitor">
       <p className="muted">Posisi dan perjalanan langsung</p>
-      {s.trainsets.slice(current * size, (current + 1) * size).map((t) => {
+      {s.trainsets.map((t) => {
         const run = s.runs.find(
           (r) =>
             r.trainsetId === t.id &&
@@ -48,7 +43,6 @@ export function FleetMonitor({ state: s }: { state: CoreState }) {
       {!s.trainsets.length && (
         <p>Trainset yang Anda rakit akan muncul di sini.</p>
       )}
-      <Pager page={current} pages={pages} onChange={setPage} />
     </div>
   );
 }

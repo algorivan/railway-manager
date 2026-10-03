@@ -2531,3 +2531,735 @@
 .dialog-heading > .tutorial-return {
   flex-shrink: 0;
 }
+
+/* Right-side workspaces: keep the left half of the map visible on desktop. */
+@media (min-width: 701px) {
+  .management-backdrop {
+    justify-content: flex-end;
+    padding: 12px 90px 12px 0;
+  }
+  .management-dialog {
+    width: min(620px, calc(50vw - 90px));
+  }
+}
+.management-dialog {
+  height: min(700px, 100%);
+  container-type: inline-size;
+}
+.dialog-heading {
+  gap: 8px;
+  padding: 10px 12px;
+}
+.dialog-heading h1 {
+  font-size: 17px;
+}
+.dialog-heading .draft-status {
+  display: none;
+}
+.dialog-heading .draft-status.dirty {
+  display: block;
+  font-size: 9px;
+}
+.dialog-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.dialog-body > .compact-workspace {
+  flex: 1;
+}
+.compact-workspace {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.compact-workspace > [role="tabpanel"] {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.workspace-tabs,
+.mobile-pane-tabs,
+.fleet-views,
+.fleet-toolbar {
+  flex-shrink: 0;
+}
+.workspace-tabs {
+  margin-bottom: 8px;
+  gap: 4px;
+}
+.workspace-tabs button {
+  padding: 5px 7px;
+  min-height: 30px;
+  font-size: 10px;
+}
+.dialog-body .game-card {
+  min-height: 0;
+  max-height: 100%;
+}
+.dialog-body .responsive-columns {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.responsive-columns.single-pane > .two-column {
+  display: block;
+  min-height: 0;
+  overflow: hidden;
+  flex: 1;
+}
+.responsive-columns.single-pane .responsive-pane {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.responsive-pane > .game-card {
+  overflow-y: auto;
+}
+.detail-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  min-height: 0;
+}
+.scroll-list {
+  max-height: min(330px, 40dvh);
+}
+.stop-table-scroll {
+  max-height: min(340px, 40dvh);
+}
+.stop-table-scroll thead {
+  position: sticky;
+  top: 0;
+  background: #f6f7f2;
+}
+.schedule-workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.schedule-workspace .schedule-save {
+  flex-shrink: 0;
+}
+.schedule-workspace .game-card > .scroll-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.shop-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fff;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.category-tabs {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.category-tabs button {
+  flex: 1;
+  min-height: 30px;
+  padding: 6px;
+  font-size: 11px;
+}
+.category-tabs button[aria-selected="true"],
+.depot-chips button[aria-pressed="true"] {
+  background: #254f49;
+  color: #fff;
+}
+.catalog-grid,
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-content: start;
+}
+.catalog-grid {
+  flex: 1;
+  padding: 2px 5px 2px 2px;
+}
+.product-card {
+  position: relative;
+  border: 1px solid var(--line);
+  background: #f6f8f5;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.product-card .vehicle-art {
+  width: 100%;
+  height: 65px;
+  object-fit: contain;
+  margin: 0;
+}
+.product-card h3 {
+  margin: 0;
+  font-size: 12px;
+  min-height: 30px;
+}
+.product-card small {
+  font-size: 10px;
+  color: var(--muted);
+}
+.product-card button {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 7px;
+  min-height: 32px;
+  font-size: 11px;
+  margin-top: auto;
+}
+.product-card .in-cart {
+  color: #28594b;
+}
+.shop-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  flex-shrink: 0;
+  font-size: 11px;
+}
+.shop-footer button {
+  font-size: 11px;
+  padding: 8px;
+}
+.shop-footer span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.cart-items {
+  flex: 1;
+}
+.cart-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.cart-item > .vehicle-art,
+.shop-panel .list-row > .vehicle-art {
+  width: 70px;
+  height: 40px;
+  object-fit: contain;
+}
+.cart-item > div:first-of-type {
+  flex: 1;
+  min-width: 0;
+}
+.cart-item b,
+.cart-item small {
+  display: block;
+  font-size: 11px;
+}
+.quantity-control {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.quantity-control button,
+.cart-item > button {
+  min-height: 28px;
+  padding: 4px 6px;
+}
+.depot-chips {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  max-height: 74px;
+  flex-shrink: 0;
+}
+.inventory-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.inventory-summary small {
+  color: var(--muted);
+}
+.inventory-grid {
+  max-height: min(260px, 30dvh);
+  padding: 3px;
+}
+.inventory-card {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  padding: 7px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  text-align: left;
+}
+.inventory-card[aria-pressed="true"],
+.formation-choice:has(input:checked) {
+  border-color: #3b7869;
+  background: #edf5ef;
+  box-shadow: 0 0 0 1px #3b7869;
+}
+.inventory-card > .vehicle-art {
+  width: 100%;
+  height: 45px;
+  object-fit: contain;
+}
+.inventory-card b,
+.inventory-card span {
+  font-size: 11px;
+}
+.inventory-card small {
+  font-size: 9px;
+  color: var(--muted);
+}
+.condition-meter {
+  display: block;
+  height: 4px;
+  background: #e6eeeb;
+  border-radius: 9px;
+  overflow: hidden;
+}
+.condition-meter > span {
+  display: block;
+  height: 100%;
+  background: #3b7869;
+}
+.condition-meter.warn > span {
+  background: #e8873e;
+}
+.inventory-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 10px;
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.inventory-detail small {
+  font-size: 10px;
+  color: var(--muted);
+}
+.inventory-detail .toolbar {
+  margin: 3px 0 0;
+}
+.formation-grid .formation-choice {
+  margin: 0;
+  position: relative;
+}
+.formation-grid .formation-choice input {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  width: 15px;
+  min-height: 15px;
+  margin: 0;
+}
+.mission-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.mission-summary {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+}
+.mission-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.mission-grid button {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: start;
+  min-height: 58px;
+  padding: 7px;
+  text-align: left;
+}
+.mission-grid button span {
+  font-size: 15px;
+  color: #a36b3e;
+}
+.mission-grid button b {
+  font-size: 10px;
+}
+.mission-grid button.complete span {
+  color: #367565;
+}
+.mission-grid button[aria-pressed="true"] {
+  border-color: #367565;
+  background: #eaf3ec;
+}
+.mission-focus {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px;
+  background: #edf3ee;
+  border-radius: 10px;
+}
+.mission-focus h2,
+.mission-focus p {
+  margin: 0 !important;
+}
+.mission-focus > small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.mission-focus > b {
+  font-size: 12px;
+}
+.mission-workspace > .toolbar {
+  margin: 0;
+}
+@container (max-width: 640px) {
+  .dialog-body .two-column {
+    grid-template-columns: 1fr;
+  }
+  .dialog-body .two-column .two-column,
+  .dialog-body .field-pair {
+    grid-template-columns: 1fr 1fr;
+  }
+  .dialog-body .schedule-save {
+    flex-wrap: wrap;
+  }
+  .dialog-body .schedule-save > div {
+    flex-basis: 100%;
+  }
+  .dialog-body .game-card {
+    padding: 10px;
+  }
+  .dialog-body label {
+    margin: 4px 0;
+    font-size: 10px;
+  }
+  .dialog-body input,
+  .dialog-body select {
+    min-height: 29px;
+    padding: 4px 6px;
+  }
+  .dialog-body .game-card p {
+    font-size: 10px;
+    margin: 6px 0;
+    line-height: 1.4;
+  }
+  .dialog-body .stats strong {
+    font-size: 16px;
+  }
+}
+@media (max-width: 700px) {
+  .management-backdrop {
+    justify-content: flex-end;
+  }
+  .management-dialog {
+    width: 100%;
+  }
+  .cart-item > .vehicle-art {
+    width: 45px;
+  }
+  .cart-item {
+    gap: 4px;
+  }
+  .product-card {
+    padding: 7px;
+  }
+  .product-card .vehicle-art {
+    height: 52px;
+  }
+  .shop-footer {
+    font-size: 10px;
+  }
+  .mission-grid button {
+    min-height: 60px;
+    padding: 5px;
+  }
+}
+/* Inventory gives its grid the spare height; selected-unit actions stay pinned. */
+.compact-workspace > [role="tabpanel"] > .game-card:has(.inventory-grid) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+.game-card:has(.inventory-grid) > .inventory-grid {
+  flex: 1;
+  max-height: none;
+  min-height: 70px;
+}
+.game-card:has(.inventory-grid) > .inventory-summary,
+.game-card:has(.inventory-grid) > .inventory-detail {
+  flex-shrink: 0;
+}
+.dialog-body > .compact-workspace > [role="tabpanel"] > .game-card {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dialog-body
+  > .compact-workspace
+  > [role="tabpanel"]
+  > .game-card
+  > .responsive-columns {
+  min-height: 0;
+  flex: 1;
+}
+.management-backdrop.map-picking {
+  background: none;
+  backdrop-filter: none;
+  pointer-events: none;
+  align-items: flex-start;
+}
+.management-backdrop.map-picking .management-dialog {
+  pointer-events: auto;
+  height: auto;
+  max-height: 300px;
+}
+.management-backdrop.map-picking .dialog-body {
+  flex: none;
+}
+.station-picking .operations-panel,
+.station-picking .map-caption,
+.station-picking .map-tools {
+  display: none !important;
+}
+.station-picking .leaflet-top.leaflet-right {
+  right: auto;
+  left: 18px;
+}
+.station-map-metrics {
+  white-space: pre-line;
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 7px 0;
+}
+.map-select-station {
+  margin-top: 5px;
+  background: #254f49 !important;
+  color: white !important;
+  border-radius: 6px;
+  padding: 6px 10px !important;
+}
+.leaflet-interactive[role="button"]:focus {
+  outline: 3px solid #ed9b3e;
+}
+.locked-route {
+  padding: 8px;
+  margin-bottom: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff0df;
+  border-radius: 8px;
+  font-size: 11px;
+}
+.schedule-fuel-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 10px;
+  padding: 8px 10px;
+  margin-top: 8px;
+  background: #eaf2ed;
+  border-radius: 8px;
+  flex-shrink: 0;
+  font-size: 11px;
+}
+.schedule-fuel-summary small {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 9px;
+}
+.schedule-save {
+  flex-shrink: 0;
+}
+@media (max-width: 700px) {
+  .management-backdrop.map-picking {
+    align-items: flex-end;
+  }
+  .management-backdrop.map-picking .management-dialog {
+    max-height: 230px;
+  }
+}
+.catalog-grid,
+.inventory-grid {
+  grid-auto-rows: max-content;
+}
+.core-game .inventory-card {
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 8px;
+  gap: 4px;
+  min-height: 115px;
+}
+.inventory-card > * {
+  flex-shrink: 0;
+}
+.inventory-card > .vehicle-art {
+  height: 45px;
+  margin: 0;
+}
+/* Notifications never cover the right-hand controls. */
+.feedback-toast {
+  pointer-events: none;
+}
+.feedback-toast > button {
+  pointer-events: auto;
+}
+@media (min-width: 701px) {
+  .feedback-stack {
+    right: calc(50% + 12px);
+    width: min(390px, calc(50% - 24px));
+  }
+}
+@media (max-width: 700px) {
+  .feedback-stack {
+    top: 8px;
+    right: 70px;
+    left: 8px;
+    width: auto;
+  }
+  .feedback-toast {
+    padding: 8px;
+    gap: 6px;
+  }
+  .feedback-toast p {
+    font-size: 10px;
+  }
+  .feedback-stack .feedback-toast:not(:last-child) {
+    display: none;
+  }
+}
+/* Timetable blocks and stop rows scroll separately; the adjustment stays visible. */
+.schedule-workspace .game-card:has(.stop-sheet) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.schedule-workspace .game-card:has(.stop-sheet) > .scroll-list {
+  max-height: 116px;
+  flex-shrink: 0;
+}
+.schedule-workspace .game-card:has(.stop-sheet) > .trip-adjustment {
+  flex-shrink: 0;
+}
+.schedule-workspace .stop-sheet {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.schedule-workspace .stop-sheet > b,
+.schedule-workspace .stop-sheet > small {
+  flex-shrink: 0;
+}
+.schedule-workspace .stop-table-scroll {
+  flex: 1;
+  max-height: none;
+  min-height: 45px;
+}
+.core-game .monitoring-panel {
+  display: flex;
+  flex-direction: column;
+}
+.monitoring-panel[hidden] {
+  display: none !important;
+}
+.monitoring-panel .panel-heading {
+  flex-shrink: 0;
+}
+.fleet-monitor {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.map-selection-tools {
+  position: absolute;
+  z-index: 600;
+  top: 108px;
+  left: 65px;
+  width: min(280px, calc(50vw - 100px));
+  padding: 10px;
+  background: #fffdf5f5;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 30px #17354a22;
+}
+.map-selection-tools label {
+  margin: 0;
+}
+.map-search-results {
+  max-height: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 5px;
+}
+.map-search-results button {
+  justify-content: flex-start;
+}
+@media (max-width: 700px) {
+  .map-selection-tools {
+    top: 120px;
+    left: 62px;
+    width: calc(100% - 145px);
+    padding: 8px;
+  }
+}
+.schedule-workspace .trip-selector {
+  flex-shrink: 0;
+  margin-bottom: 6px;
+}
+.schedule-workspace .trip-adjustment {
+  margin-top: 0;
+}
+.schedule-workspace .single-pane .game-card > h3 {
+  display: none;
+}
+.schedule-workspace .trip-selector {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+.schedule-workspace .trip-adjustment label {
+  margin: 2px 0;
+  font-size: 10px;
+  line-height: 1.3;
+}
+.schedule-workspace .stop-sheet {
+  border: 0;
+  padding: 0;
+  margin: 6px 0 0;
+}
+.schedule-workspace .stop-sheet > b {
+  font-size: 11px;
+}
+.schedule-workspace .stop-sheet > small {
+  font-size: 9px;
+  line-height: 1.3;
+  margin: 3px 0 5px;
+}

@@ -6,59 +6,18 @@ import {
   useState,
   type ReactNode,
 } from "react";
-export function Pager({
-  page,
-  pages,
-  onChange,
-}: {
-  page: number;
-  pages: number;
-  onChange: (page: number) => void;
-}) {
-  if (pages <= 1) return null;
-  return (
-    <div className="pager">
-      <button
-        aria-label="Halaman sebelumnya"
-        disabled={page === 0}
-        onClick={() => onChange(page - 1)}
-      >
-        ←
-      </button>
-      <span>
-        {page + 1} / {pages}
-      </span>
-      <button
-        aria-label="Halaman berikutnya"
-        disabled={page + 1 >= pages}
-        onClick={() => onChange(page + 1)}
-      >
-        →
-      </button>
-    </div>
-  );
-}
-export function PagedList<T>({
+/** Only the list scrolls; menu navigation and actions remain outside it. */
+export function ScrollList<T>({
   items,
   render,
-  size = 4,
 }: {
   items: readonly T[];
   render: (item: T, index: number) => ReactNode;
-  size?: number;
 }) {
-  const [page, setPage] = useState(0),
-    pages = Math.max(1, Math.ceil(items.length / size));
-  const current = Math.min(page, pages - 1);
   return (
-    <>
-      <div className="paged-list">
-        {items
-          .slice(current * size, (current + 1) * size)
-          .map((item, i) => render(item, current * size + i))}
-      </div>
-      <Pager page={current} pages={pages} onChange={setPage} />
-    </>
+    <div className="scroll-list detail-scroll" tabIndex={0}>
+      {items.map(render)}
+    </div>
   );
 }
 export function CompactWorkspace({ children }: { children: ReactNode }) {
@@ -93,6 +52,7 @@ export function ManagementDialog({
   dirty,
   discard,
   returnToMissions,
+  interactiveMap = false,
 }: {
   title: string;
   children: ReactNode;
@@ -100,6 +60,7 @@ export function ManagementDialog({
   dirty: boolean;
   discard: () => void;
   returnToMissions?: () => void;
+  interactiveMap?: boolean;
 }) {
   const element = useRef<HTMLElement>(null),
     [confirm, setConfirm] = useState(false);
@@ -114,7 +75,7 @@ export function ManagementDialog({
         event.preventDefault();
         closeRef.current();
       }
-      if (event.key !== "Tab") return;
+      if (event.key !== "Tab" || interactiveMap) return;
       const nodes = [
         ...element.current!.querySelectorAll<HTMLElement>(
           'button, input, select, textarea, summary, [tabindex="0"]',
@@ -148,14 +109,16 @@ export function ManagementDialog({
       document.removeEventListener("keydown", key);
       old?.focus();
     };
-  }, []);
+  }, [interactiveMap]);
   return (
-    <div className="management-backdrop">
+    <div
+      className={`management-backdrop ${interactiveMap ? "map-picking" : ""}`}
+    >
       <section
         ref={element}
         tabIndex={-1}
         role="dialog"
-        aria-modal="true"
+        aria-modal={!interactiveMap}
         aria-label={title}
         className="management-dialog"
       >
@@ -200,7 +163,7 @@ export function ManagementDialog({
   );
 }
 
-/** On a phone, show one compact pane at a time while preserving each form's state. */
+/** Use the available panel width, preserving forms when panes are switched. */
 export function ResponsiveColumns({
   children,
   labels,
@@ -210,17 +173,21 @@ export function ResponsiveColumns({
 }) {
   const panes = Children.toArray(children),
     [selected, setSelected] = useState(0),
-    [mobile, setMobile] = useState(
-      () => window.matchMedia("(max-width: 700px)").matches,
-    );
+    [mobile, setMobile] = useState(true);
+  const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const media = window.matchMedia("(max-width: 700px)"),
-      update = () => setMobile(media.matches);
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry && entry.contentRect.width > 0)
+        setMobile(entry.contentRect.width < 640);
+    });
+    if (container.current) observer.observe(container.current);
+    return () => observer.disconnect();
   }, []);
   return (
-    <div className="responsive-columns">
+    <div
+      ref={container}
+      className={`responsive-columns ${mobile ? "single-pane" : ""}`}
+    >
       {mobile && (
         <div className="mobile-pane-tabs" role="tablist">
           {panes.map((p, i) => (
