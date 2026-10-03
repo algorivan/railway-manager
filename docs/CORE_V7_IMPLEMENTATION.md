@@ -10,17 +10,20 @@ Confirmed during this build:
 
 ## Current implementation
 
+The latest UI, economy, cargo contracts and user-defined station classes are detailed in [Planning economy v2](PLANNING_ECONOMY_AND_CONTRACTS.md). Those values supersede the earlier balance notes below.
+
+
 | Area | Behavior |
 | --- | --- |
 | Clock and persistence | JSON state with schema/reference validation, real-time anchors, Realism 1×/Casual 1.5×, event-based catch-up, export/import and a recoverable import backup. Invalid stored saves are preserved and not silently overwritten. Supported browsers serialize save ownership across tabs with Web Locks. |
-| Procurement | Individual orders and unit acceptance. Starter ready-stock is local to the selected hub; additional orders take 3/7/14 game days. Payment is upfront; the proposed deposit model is deferred. |
+| Procurement | Individual orders and unit acceptance. Starter ready-stock is local to the selected hub; additional orders take 45/90/120 game minutes by type. Payment is upfront; the proposed deposit model is deferred. |
 | Units and trainsets | Unique inventory IDs, ordered formations, capacities, electrical balance, location and platform checks, unit replacement, and separation of physical status, jobs and assignments. There is no eight-coach count cap. |
-| Services | Reusable company services, shortest connected paths over accessible corridors, commercial-stop selection, EC/EX/LX reference/manual fares and per-OD fare inspection. Local validates every path node's province. Capital/Domestic station classifications remain unavailable and are labelled accordingly. |
+| Services | Reusable company services, shortest connected paths over accessible corridors, commercial-stop selection, EC/EX/LX reference/manual fares and per-OD fare inspection. Local validates every path node's province. Official station classifications remain unavailable; user-defined gameplay classes are labelled separately. |
 | Diagrams | Round-trip and multi-service chains with 24/48/72-hour cycles. Checks cover interval overlap, physical continuity and the next-cycle boundary. Same-service reverse legs need 60 minutes; changing services requires contracted service facilities and 30 minutes. |
 | Dispatch | Readiness checks, automatic departure, stable occurrence IDs, held states and manual recovery. A held or stopped occurrence prevents a backlog of duplicate dependent runs. |
 | Movement | Corridor traversal, commercial dwell, distances, speed caps, station boarding/alighting, conservative occupancy reservations and planned/actual time. Conservative whole-corridor reservations prevent simultaneous opposing movements on a single-track corridor and conflicting same-direction use on double track. They are not a detailed signalling model. |
 | Passengers | Deterministic OD/time/class demand, shared bucket consumption, capacity reservations over every booked segment and distance-weighted load factor. Seat reuse permits total boarding to exceed simultaneous seats without LF exceeding 100%. The demand model is a balance baseline, not an empirically calibrated market. |
-| Fuel | Separate depot stock and locomotive/generator tanks, weighted acquisition cost, manual purchases, expiring 30-real-minute public quotes, refuel transfers, consumption and storage jobs. Upgrading storage never grants fuel or enlarges vehicle tanks. No offline auto-purchase. |
+| Fuel | Separate depot stock and locomotive/generator tanks, weighted acquisition cost, manual purchases, expiring 30-real-minute public quotes, refuel transfers, consumption and storage jobs. Upgrading storage never grants fuel or enlarges vehicle tanks. Vendor refueling at large game hubs is opt-in per trainset when saving schedules; legacy saves default to stock-only. |
 | Ledger | Idempotent cash transactions. Fuel purchases affect cash/inventory; refuel is a transfer; consumption is an expense without a second cash debit. Passenger revenue settles once after service delivery. Contribution is distinct from company profit after overhead. |
 | Exceptions | Stop requests take effect at the next station; resuming preserves the existing bookings. Recall returns physically through accessible corridors, charges the empty return, cancels unsettled tickets and only transfers spare onboard fuel after arriving at the depot. The first model has no prepaid ticket cash, so cancellation cannot create a cash-refund exploit. |
 | Maintenance | P1 and compatible Economy interior retrofit, one contracted bay per depot, queued jobs, location/resource checks, preserved commissioning age and preserved mild-steel body for retrofit. Changing passenger capacity requires pausing the diagram. |

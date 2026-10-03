@@ -114,3 +114,35 @@ export function coreDailySchedule(s: CoreState, day: number): CoreRun[] {
   }
   return runs.sort((a, b) => a.start - b.start);
 }
+
+/** Fill one repeat window with complete PP pairs; preserve both terminal preparation intervals. */
+export function coreAutomaticRoundTrips(
+  s: CoreState,
+  tid: string,
+  rid: string,
+  reverse: boolean,
+  first: number,
+  period = 1440,
+) {
+  if (![1440, 2880, 4320].includes(period) || first < 0 || first >= period)
+    throw new Error("Jam awal atau pengulangan tidak valid.");
+  const duties: CoreDuty[] = [];
+  let departure = first;
+  while (duties.length < 24) {
+    const outbound = forecastCore(s, tid, rid, reverse, departure);
+    const backAt = Math.ceil(outbound.end + CORE_BALANCE.turnaroundMinutes);
+    const inbound = forecastCore(s, tid, rid, !reverse, backAt);
+    const ready = Math.ceil(inbound.end + CORE_BALANCE.turnaroundMinutes);
+    if (ready > first + period) break;
+    duties.push(
+      { serviceId: rid, reverse, offset: departure % period },
+      { serviceId: rid, reverse: !reverse, offset: backAt % period },
+    );
+    departure = ready;
+  }
+  if (!duties.length)
+    throw new Error(
+      "Satu PP beserta jeda tidak muat. Pilih pengulangan 2 atau 3 hari.",
+    );
+  return duties;
+}

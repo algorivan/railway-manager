@@ -1,132 +1,172 @@
 import { useState } from "react";
-import { Wrench } from "lucide-react";
 import { coreProduct, stationName, type CoreState } from "@railway/simulation";
 import { Asset, Card, remaining, compact, type Act } from "./presentation";
-
+import { CompactWorkspace, PagedList, ResponsiveColumns } from "./Compact";
 export function Depot({ state: s, act }: { state: CoreState; act: Act }) {
-  const [station, setStation] = useState(s.hub);
-  const depot = s.depots.find((d) => d.station === station);
-  const units = s.units.filter((u) => u.location === station);
-  const jobs = units.filter((u) => u.job);
-  const moving = (uid: string) =>
-    s.runs.some((r) => r.status === "running" && r.unitIds.includes(uid));
+  const [station, setStation] = useState(s.hub),
+    [uid, setUnit] = useState("");
+  const depot = s.depots.find((d) => d.station === station),
+    units = s.units.filter((u) => u.location === station),
+    jobs = units.filter((u) => u.job),
+    u = units.find((u) => u.id === uid) ?? units[0],
+    p = u ? coreProduct(u.productId) : null,
+    train = u ? s.trainsets.find((t) => t.units.includes(u.id)) : null,
+    moving =
+      u &&
+      s.runs.some(
+        (r) =>
+          ["running", "held", "stopped"].includes(r.status) &&
+          r.unitIds.includes(u.id),
+      );
   return (
-    <div className="panel-scroll">
-      <Card title="Depo & inventori armada">
-        <label>
-          Lokasi depo
-          <select value={station} onChange={(e) => setStation(e.target.value)}>
-            {[
-              ...new Set([
-                ...s.depots.map((d) => d.station),
-                ...s.units.map((u) => u.location),
-              ]),
-            ].map((id) => (
-              <option value={id} key={id}>
-                {stationName(id)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="stats">
-          <div>
-            <strong>{units.length}</strong>
-            <small>Unit di lokasi</small>
-          </div>
-          <div>
-            <strong>{jobs.length}</strong>
-            <small>Dalam perawatan</small>
-          </div>
-          <div>
-            <strong>
-              {depot ? `${depot.capacity.toLocaleString("id-ID")} L` : "—"}
-            </strong>
-            <small>Kapasitas fuel depo</small>
-          </div>
-        </div>
-        <p className="muted">
-          {depot?.contractCost !== undefined &&
-            `Kontrak depo: ${compact(depot.contractCost)}. `}
-          {depot
-            ? `${Math.round(depot.stock).toLocaleString("id-ID")} L fuel tersimpan. Satu bay maintenance tersedia per depo.`
-            : "Lokasi ini belum memiliki kontrak depo; perawatan memerlukan depo."}{" "}
-          Kapasitas parkir sarana belum dibatasi dalam model saat ini.
-        </p>
-      </Card>
-      <Card title={`Inventori · ${stationName(station)}`}>
-        {!units.length && (
-          <p className="muted">
-            Belum ada sarana di lokasi ini. Pesan dan terima sarana melalui
-            Pasar.
-          </p>
-        )}
-        {units.map((u) => {
-          const train = s.trainsets.find((t) => t.units.includes(u.id));
-          const running = moving(u.id);
-          return (
-            <article className="depot-unit" key={u.id}>
-              <div className="inventory-row">
-                <Asset id={u.productId} />
-                <div>
-                  <b>{coreProduct(u.productId).name}</b>
-                  <small>
-                    #{u.id.slice(-8)} · {train?.name ?? "Belum ditugaskan"}
-                  </small>
-                </div>
-                <span className={`pill ${u.job ? "warn" : "good"}`}>
-                  {u.job ? "Maintenance" : running ? "Dalam dinas" : "Tersedia"}
-                </span>
-              </div>
+    <>
+      <label>
+        Lokasi depo
+        <select
+          value={station}
+          onChange={(e) => {
+            setStation(e.target.value);
+            setUnit("");
+          }}
+        >
+          {[
+            ...new Set([
+              ...s.depots.map((d) => d.station),
+              ...s.units.map((u) => u.location),
+            ]),
+          ].map((id) => (
+            <option key={id} value={id}>
+              {stationName(id)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <CompactWorkspace>
+        <Card title="Inventori & kondisi">
+          <ResponsiveColumns>
+            <div>
               <div className="stats">
                 <div>
-                  <strong>{u.condition.toFixed(1)}%</strong>
-                  <small>Kondisi</small>
+                  <strong>{units.length}</strong>
+                  <small>Unit di lokasi</small>
                 </div>
                 <div>
-                  <strong>{Math.round(u.km).toLocaleString("id-ID")}</strong>
-                  <small>Jarak tempuh km</small>
+                  <strong>{jobs.length}</strong>
+                  <small>Dalam perawatan</small>
+                </div>
+                <div>
+                  <strong>
+                    {depot?.capacity.toLocaleString("id-ID") ?? "—"}
+                  </strong>
+                  <small>Kapasitas fuel (L)</small>
                 </div>
               </div>
-              <p className="muted">
-                {u.job
-                  ? `${u.job.kind} selesai dalam ${remaining(u.job.end, s)}`
-                  : `P1 berikutnya: ${remaining(u.nextService, s)}`}
+              <p>
+                {depot
+                  ? `${Math.round(depot.stock).toLocaleString("id-ID")} L tersimpan · kontrak ${compact(depot.contractCost ?? 0)}`
+                  : "Lokasi belum memiliki depo."}
               </p>
-              <button
-                disabled={running || !!u.job || !depot}
-                onClick={() => act({ type: "maintenance", unitId: u.id })}
-              >
-                <Wrench size={14} /> Jadwalkan P1
-              </button>
-              {train &&
-                s.plans.some((p) => p.active && p.trainsetId === train.id) && (
-                  <p className="muted">
-                    Jeda diagram di Jadwal sebelum perawatan.
-                  </p>
-                )}
-            </article>
-          );
-        })}
-      </Card>
-      <Card title="Jadwal maintenance">
-        {!jobs.length && (
-          <p className="muted">
-            Tidak ada pekerjaan aktif atau antre di lokasi ini.
-          </p>
-        )}
-        {jobs.map((u) => (
-          <div className="list-row" key={u.id}>
-            <div>
-              <b>
-                {coreProduct(u.productId).name} · #{u.id.slice(-8)}
-              </b>
-              <small>
-                {u.job!.kind} · selesai {remaining(u.job!.end, s)}
-              </small>
+              <label>
+                Sarana
+                <select
+                  aria-label="Unit inventori"
+                  value={u?.id ?? ""}
+                  onChange={(e) => setUnit(e.target.value)}
+                >
+                  {units.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {coreProduct(u.productId).name} #{u.id.slice(-4)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="muted">
+                Satu bay per depo; pekerjaan antre berurutan. Kapasitas parkir
+                sarana belum dibatasi.
+              </p>
             </div>
-          </div>
-        ))}
-      </Card>
-    </div>
+            <div>
+              {u && p ? (
+                <>
+                  <Asset id={p.id} />
+                  <h2>{p.name}</h2>
+                  <p>
+                    {train?.name ?? "Belum ditugaskan"} ·{" "}
+                    {moving
+                      ? "Dalam dinas"
+                      : u.job
+                        ? "Dalam perawatan"
+                        : "Tersedia"}
+                  </p>
+                  <div className="stats">
+                    <div>
+                      <strong>{u.condition.toFixed(1)}%</strong>
+                      <small>Kondisi</small>
+                    </div>
+                    <div>
+                      <strong>{Math.round(u.km)}</strong>
+                      <small>Jarak (km)</small>
+                    </div>
+                    <div>
+                      <strong>{Math.round(u.fuel)}</strong>
+                      <small>Fuel onboard (L)</small>
+                    </div>
+                  </div>
+                  <p>
+                    {u.job
+                      ? `${u.job.kind} · ${remaining(u.job.end, s)}`
+                      : `P1 berikut: ${remaining(u.nextService, s)}`}
+                  </p>
+                  <div className="toolbar">
+                    <button
+                      disabled={!!moving || !!u.job || !depot}
+                      onClick={() => act({ type: "maintenance", unitId: u.id })}
+                    >
+                      P1 · {p.kind === "loco" ? 30 : 15} menit
+                    </button>
+                    {["ec-standard", "ec-regular"].includes(p.id) && (
+                      <button
+                        disabled={!!moving || !!u.job || !depot}
+                        onClick={() =>
+                          act({
+                            type: "maintenance",
+                            unitId: u.id,
+                            retrofit: true,
+                          })
+                        }
+                      >
+                        Retrofit · 90 menit
+                      </button>
+                    )}
+                  </div>
+                  <p className="muted">
+                    Jeda jadwal trainset sebelum perawatan lewat Jadwal → Rekap
+                    harian.
+                  </p>
+                </>
+              ) : (
+                <p>Belum ada sarana. Pesan dan terima melalui Pasar.</p>
+              )}
+            </div>
+          </ResponsiveColumns>
+        </Card>
+        <Card title="Antrean maintenance">
+          <PagedList
+            items={jobs}
+            render={(u) => (
+              <div className="list-row" key={u.id}>
+                <b>
+                  {coreProduct(u.productId).name} #{u.id.slice(-4)}
+                </b>
+                <span>
+                  {u.job!.kind} · {remaining(u.job!.end, s)}
+                </span>
+              </div>
+            )}
+          />
+          {!jobs.length && <p>Tidak ada pekerjaan maintenance aktif.</p>}
+        </Card>
+      </CompactWorkspace>
+    </>
   );
 }

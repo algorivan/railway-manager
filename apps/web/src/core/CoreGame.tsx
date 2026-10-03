@@ -44,14 +44,30 @@ import {
   writePreference,
 } from "./feedback";
 import { CompanySetup } from "./CompanySetup";
+import { FleetMonitor } from "./FleetMonitor";
+import { GameHeader } from "./GameHeader";
+import { ManagementDialog } from "./Compact";
+import { NetworkManagement } from "./NetworkManagement";
 import "./core.css";
 const TUTORIAL_KEY = "railway-manager-tutorial-v1";
-const CoreMap = lazy(() => import("./CoreMap").then((module) => ({ default: module.CoreMap })));
-const Fleet = lazy(() => import("./Fleet").then((module) => ({ default: module.Fleet })));
-const Schedules = lazy(() => import("./Schedules").then((module) => ({ default: module.Schedules })));
-const Market = lazy(() => import("./Market").then((module) => ({ default: module.Market })));
-const Office = lazy(() => import("./Office").then((module) => ({ default: module.Office })));
-const Tutorial = lazy(() => import("./Tutorial").then((module) => ({ default: module.Tutorial })));
+const CoreMap = lazy(() =>
+  import("./CoreMap").then((module) => ({ default: module.CoreMap })),
+);
+const Fleet = lazy(() =>
+  import("./Fleet").then((module) => ({ default: module.Fleet })),
+);
+const Schedules = lazy(() =>
+  import("./Schedules").then((module) => ({ default: module.Schedules })),
+);
+const Market = lazy(() =>
+  import("./Market").then((module) => ({ default: module.Market })),
+);
+const Office = lazy(() =>
+  import("./Office").then((module) => ({ default: module.Office })),
+);
+const Tutorial = lazy(() =>
+  import("./Tutorial").then((module) => ({ default: module.Tutorial })),
+);
 const SAVE = "railway-manager-v7";
 
 export default function CoreGame() {
@@ -74,13 +90,14 @@ export default function CoreGame() {
     readPreference(TUTORIAL_KEY) ? "fleet" : "tutorial",
   );
   const [open, setOpen] = useState(true);
+  const [modalOpen, setModalOpen] = useState(
+    () => !readPreference(TUTORIAL_KEY),
+  );
+  const [draftDirty, setDraftDirty] = useState(false);
   const [importing, setImporting] = useState(false);
   const [fleetView, setFleetView] = useState<"operations" | "depot">(
     "operations",
   );
-  const [history, setHistory] = useState<
-    { screen: Screen; view: "operations" | "depot" }[]
-  >([]);
   const [tutorialJourney, setTutorialJourney] = useState(false);
   const [notice, setNotice] = useState(
     loadError.current ||
@@ -167,24 +184,16 @@ export default function CoreGame() {
     }
   }, [state, saveBlocked, ownsSave]);
   const go = (target: Screen, view: "operations" | "depot" = "operations") => {
-    if (target !== screen || (target === "fleet" && view !== fleetView)) {
-      setHistory((items) => [...items.slice(-19), { screen, view: fleetView }]);
+    if (draftDirty) {
+      notify("Simpan atau tutup rancangan jadwal sebelum berganti menu.", true);
+      return;
     }
     if (screen === "tutorial" && target !== "tutorial")
       setTutorialJourney(true);
     if (target === "tutorial") setTutorialJourney(false);
     setScreen(target);
     setFleetView(view);
-    setOpen(true);
-  };
-  const back = () => {
-    const previous = history.at(-1);
-    if (!previous) return;
-    setHistory((items) => items.slice(0, -1));
-    setScreen(previous.screen);
-    setFleetView(previous.view);
-    setOpen(true);
-    if (previous.screen === "tutorial") setTutorialJourney(false);
+    setModalOpen(true);
   };
   const notify = (message: string, failed = false) => {
     setNotice(message);
@@ -278,7 +287,6 @@ export default function CoreGame() {
     { id: "office", label: "Kantor", icon: Building2 },
     { id: "tutorial", label: "Tutorial", icon: BookOpen },
   ] as const;
-  const level = coreLevel(state);
   if (state.companyStarted === false && !saveBlocked)
     return (
       <main className="core-game">
@@ -295,83 +303,29 @@ export default function CoreGame() {
     <main
       className={`core-game ${open ? "sidebar-open" : "sidebar-collapsed"}`}
     >
-      <Suspense fallback={<div className="map-boot-loading" role="status">Memuat peta operasi…</div>}><CoreMap state={state} /></Suspense>
-      <header className="game-header">
-        <div className="brand">
-          <span className="brand-mark">
-            <TrainFront size={22} />
-          </span>
-          <div>
-            <b>
-              RAILWAY<span> MANAGER</span>
-            </b>
-            <small>
-              Perusahaan Anda · {stationName(state.hub)} · Lv {level.level} ·{" "}
-              {level.xp} XP
-            </small>
+      <Suspense
+        fallback={
+          <div className="map-boot-loading" role="status">
+            Memuat peta operasi…
           </div>
-        </div>
-        <div className="header-metrics">
-          <div>
-            <small>Kas tersedia</small>
-            <strong>{compact(state.cash)}</strong>
-          </div>
-          <div>
-            <small>Reputasi</small>
-            <strong>
-              {state.reputation.toFixed(1)}
-              <em>/100</em>
-            </strong>
-          </div>
-          <div>
-            <small>
-              {state.mode} · {pace(state)}×
-            </small>
-            <strong>
-              {clock(state.minute)} <em>WIB</em>
-            </strong>
-          </div>
-        </div>
-      </header>
+        }
+      >
+        <CoreMap state={state} />
+      </Suspense>
+      <GameHeader state={state} />
       <div className="map-caption">
         <span className="live-dot" /> DUNIA OPERATOR TUNGGAL{" "}
         <span>· Hari {Math.floor(state.minute / 1440) + 1}</span>
       </div>
       <aside
         id="operations-sidebar"
-        className="operations-panel"
+        className="operations-panel monitoring-panel"
         hidden={!open}
       >
-        {(history.length > 0 || (tutorialJourney && screen !== "tutorial")) && (
-          <div className="navigation-trail">
-            {history.length > 0 && (
-              <button onClick={back}>
-                <ArrowLeft size={14} /> Kembali
-              </button>
-            )}
-            {tutorialJourney && screen !== "tutorial" && (
-              <button onClick={() => go("tutorial")}>
-                <BookOpen size={14} /> Kembali ke tutorial
-              </button>
-            )}
-          </div>
-        )}
         <div className="panel-heading">
           <div>
-            <small>RUANG OPERASI</small>
-            <h1>
-              {screen === "map"
-                ? "Jaringan operasi"
-                : screen === "fleet"
-                  ? "Armada & operasi"
-                  : screen === "schedule"
-                    ? "Jadwal perjalanan"
-                    : screen === "market"
-                      ? "Pasar sarana"
-                      : screen === "tutorial"
-                        ? "Panduan bermain"
-                        : "Kantor perusahaan"}
-            </h1>
+            <small>PANTAU PERJALANAN</small>
+            <h1>Armada langsung</h1>
           </div>
           <button
             className="icon-button"
@@ -381,113 +335,87 @@ export default function CoreGame() {
             <ChevronLeft size={20} />
           </button>
         </div>
-        <Suspense fallback={<div className="panel-loading" role="status"><span className="loading-spinner" />Memuat menu…</div>}>
-        {screen === "fleet" && (
-          <Fleet
-            state={state}
-            act={act}
-            go={go}
-            view={fleetView}
-            setView={setFleetView}
-          />
-        )}
-        {screen === "schedule" && <Schedules state={state} act={act} />}
-        {screen === "market" && <Market state={state} act={act} />}
-        {screen === "office" && (
-          <Office
-            state={state}
-            act={act}
-            exportSave={exportSave}
-            importSave={importSave}
-            notify={notify}
-          />
-        )}
-        {screen === "tutorial" && (
-          <Tutorial
-            state={state}
-            act={act}
-            go={go}
-            sound={feedback.sound}
-            toggleSound={feedback.toggleSound}
-            onContinue={() => {
-              writePreference(TUTORIAL_KEY, "seen");
-              go("fleet");
-              setTutorialJourney(false);
-            }}
-          />
-        )}
-        {screen === "map" && (
-          <div className="panel-scroll">
-            <Card title="Jaringan yang terhubung">
-              <p className="muted">
-                {CORE_NETWORK_SOURCE.importedAt
-                  ? `Geometri jalur dari OpenStreetMap. ${CORE_NETWORK_SOURCE.importedStationCount} stasiun terimpor; kelas, peron dan batas operasi masih perlu verifikasi.`
-                  : `Tersedia ${CORE_NETWORK_SOURCE.intermediateStationCount} stasiun antara dengan posisi OSM pada ${CORE_NETWORK_SOURCE.gameCorridorCount} koridor Jawa. Kelas stasiun belum terverifikasi; garis penghubung dan jarak antarstasiun masih skema game. Dataset nasional belum lengkap.`}
-              </p>
-              <h3>Ekspansi Jawa Timur</h3>
-              <p className="muted">Buka akses koridor penuh setelah menyelesaikan satu PP. Koridor baru harus tersambung dengan jaringan Anda. Jarak, batas kecepatan dan okupansi jalur tunggal adalah aturan sementara game.</p>
-              {EAST_JAVA_CORRIDORS.map((corridor) => <div className="list-row" key={corridor.id}>
-                <div><b>{corridor.name}</b><small>~{corridor.distanceKm} km · batas game {corridor.maxSpeedKmh} km/jam</small></div>
-                {state.access.includes(corridor.id) ? <span className="pill good">Terbuka</span> : <button onClick={() => act({ type: "access", segmentId: corridor.id }, "Akses koridor Jawa Timur dibuka.")}>Buka · Rp25 jt</button>}
-              </div>)}
-              <h3>Bagian lintas</h3>
-              {tracks
-                .filter(
-                  (e) =>
-                    operatingTrackAccessible(e, state.access) ||
-                    stations.some((st) => st.id === e.originStationId),
-                )
-                .map((e) => (
-                  <div className="list-row" key={e.id}>
-                    <div>
-                      <b>
-                        {stationName(e.originStationId)} →{" "}
-                        {stationName(e.destinationStationId)}
-                      </b>
-                      <small>
-                        {e.distanceKm} km ·{" "}
-                        {e.isDoubleTrack ? "Double track" : "Single track"}
-                      </small>
-                    </div>
-                    {operatingTrackAccessible(e, state.access) ? (
-                      <span className="pill good">Terbuka</span>
-                    ) : (
-                      <button
-                        onClick={() =>
-                          act(
-                            { type: "access", segmentId: e.id },
-                            "Akses lintas dibuka.",
-                          )
-                        }
-                      >
-                        Buka · Rp25 jt
-                      </button>
-                    )}
-                  </div>
-                ))}
-            </Card>
-            <Card title="Fasilitas kontrak">
-              {stations
-                .filter(
-                  (st) =>
-                    st.connected &&
-                    !state.depots.some((d) => d.station === st.id),
-                )
-                .map((st) => (
-                  <div className="list-row" key={st.id}>
-                    <span>{stationName(st.id)}</span>
-                    <button
-                      onClick={() => act({ type: "depot", station: st.id })}
-                    >
-                      Kontrak depo · {compact(depotContractPrice(st.id))}
-                    </button>
-                  </div>
-                ))}
-            </Card>
-          </div>
-        )}
-        </Suspense>
+        <FleetMonitor state={state} />
       </aside>
+      {modalOpen && (
+        <ManagementDialog
+          key={`${screen}:${fleetView}`}
+          title={
+            screen === "map"
+              ? "Peta & jaringan"
+              : screen === "schedule"
+                ? "Jadwal perjalanan"
+                : screen === "market"
+                  ? "Pasar sarana"
+                  : screen === "office"
+                    ? "Kantor perusahaan"
+                    : screen === "tutorial"
+                      ? "Misi & panduan"
+                      : fleetView === "depot"
+                        ? "Depo & inventori"
+                        : "Kelola armada"
+          }
+          returnToMissions={
+            tutorialJourney && screen !== "tutorial"
+              ? () => go("tutorial")
+              : undefined
+          }
+          dirty={draftDirty}
+          discard={() => setDraftDirty(false)}
+          close={() => {
+            setModalOpen(false);
+            setDraftDirty(false);
+          }}
+        >
+          <Suspense
+            fallback={
+              <div className="panel-loading" role="status">
+                <span className="loading-spinner" />
+                Memuat menu…
+              </div>
+            }
+          >
+            {screen === "fleet" && (
+              <Fleet
+                state={state}
+                act={act}
+                go={go}
+                view={fleetView}
+                setView={setFleetView}
+              />
+            )}
+            {screen === "schedule" && (
+              <Schedules state={state} act={act} onDirty={setDraftDirty} />
+            )}
+            {screen === "market" && <Market state={state} act={act} />}
+            {screen === "office" && (
+              <Office
+                go={go}
+                state={state}
+                act={act}
+                exportSave={exportSave}
+                importSave={importSave}
+                notify={notify}
+              />
+            )}
+            {screen === "tutorial" && (
+              <Tutorial
+                state={state}
+                act={act}
+                go={go}
+                sound={feedback.sound}
+                toggleSound={feedback.toggleSound}
+                onContinue={() => {
+                  writePreference(TUTORIAL_KEY, "seen");
+                  setModalOpen(false);
+                  setTutorialJourney(false);
+                }}
+              />
+            )}
+            {screen === "map" && <NetworkManagement state={state} act={act} />}
+          </Suspense>
+        </ManagementDialog>
+      )}
       {!open && (
         <button
           className="sidebar-expand"
@@ -500,11 +428,24 @@ export default function CoreGame() {
         </button>
       )}
       <nav className="game-dock" aria-label="Menu utama">
-        {nav.map(({ id, label, icon: Icon }) => <button key={id} aria-label={label} aria-current={screen === id && open ? "page" : undefined} className={screen === id && open ? "active" : ""} onClick={() => go(id)}><Icon size={20} /><span>{label}</span></button>)}
+        {nav.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            aria-label={label}
+            aria-current={screen === id && modalOpen ? "page" : undefined}
+            className={screen === id && modalOpen ? "active" : ""}
+            onClick={() => go(id)}
+          >
+            <Icon size={20} />
+            <span>{label}</span>
+          </button>
+        ))}
         <button
           aria-label="Depo"
           className={
-            screen === "fleet" && fleetView === "depot" && open ? "active" : ""
+            screen === "fleet" && fleetView === "depot" && modalOpen
+              ? "active"
+              : ""
           }
           onClick={() => go("fleet", "depot")}
         >
@@ -520,8 +461,17 @@ export default function CoreGame() {
           <span>Suara</span>
         </button>
       </nav>
-      {importing && <div className="import-loading" role="status"><span className="loading-spinner" />Memulihkan checkpoint dan progres offline…</div>}
-      {!ownsSave && <div className="save-access-loading" role="status">Menunggu akses save. Tutup tab operasi lain jika masih terbuka.</div>}
+      {importing && (
+        <div className="import-loading" role="status">
+          <span className="loading-spinner" />
+          Memulihkan checkpoint dan progres offline…
+        </div>
+      )}
+      {!ownsSave && (
+        <div className="save-access-loading" role="status">
+          Menunggu akses save. Tutup tab operasi lain jika masih terbuka.
+        </div>
+      )}
       <Feedback notices={feedback.notices} dismiss={feedback.dismiss} />
       <div
         role={error ? "alert" : "status"}

@@ -1,3 +1,4 @@
+import { CORE_SELECTABLE_STATIONS } from "@railway/game-data";
 import { describe, expect, it } from "vitest";
 import {
   createCoreState,
@@ -10,6 +11,7 @@ import {
 } from "../src/engine/core-v7.js";
 import {
   coreFixedRoundTrip,
+  coreAutomaticRoundTrips,
   coreRunStationTimes,
   coreDailySchedule,
   coreDraftScheduleRuns,
@@ -59,6 +61,35 @@ function fixture() {
   return s;
 }
 describe("simple schedule planning", () => {
+  it("fills the day with as many complete PP as fit and never mutates the company", () => {
+    let s = fixture();
+    s = applyCoreAction(
+      s,
+      {
+        type: "service",
+        origin: s.hub,
+        destination: CORE_SELECTABLE_STATIONS.find((st) => st.code === "CMI")!
+          .id,
+        category: "Custom",
+      },
+      "short",
+      now,
+    );
+    const tid = s.trainsets[0]!.id,
+      rid = s.services.at(-1)!.id,
+      before = serializeCore(s);
+    const duties = coreAutomaticRoundTrips(s, tid, rid, false, 1380);
+    expect(duties.length).toBeGreaterThanOrEqual(8);
+    expect(previewCoreDiagram(s, tid, 1440, duties).issues).toEqual([]);
+    const runs = coreDraftScheduleRuns(s, tid, 1440, duties),
+      last = runs.at(-1)!;
+    expect(last.end + 60).toBeLessThanOrEqual(runs[0]!.start + 1440);
+    const next = forecastCore(s, tid, rid, false, Math.ceil(last.end + 60));
+    expect(
+      forecastCore(s, tid, rid, true, Math.ceil(next.end + 60)).end + 60,
+    ).toBeGreaterThan(runs[0]!.start + 1440);
+    expect(serializeCore(s)).toBe(before);
+  });
   it("generates fixed PP with preparation time, including an overnight daily loop", () => {
     let s = fixture();
     const tid = s.trainsets[0]!.id,

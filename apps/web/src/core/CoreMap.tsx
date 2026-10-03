@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import {
+  gameStationClassLabel,
   CORE_SELECTABLE_STATIONS as stations,
   CORE_ROUTING_TRACKS as tracks,
   CORE_NETWORK_SOURCE,
@@ -28,7 +29,9 @@ export function CoreMap({ state }: { state: CoreState }) {
   const accessKey = state.access.join("|");
   const routeKey = JSON.stringify(selected ?? null);
   const selectedStopsRef = useRef(new Set<string>());
-  selectedStopsRef.current = new Set(selected?.stops ?? selected?.stations ?? []);
+  selectedStopsRef.current = new Set(
+    selected?.stops ?? selected?.stations ?? [],
+  );
   const hubRef = useRef(state.hub);
   hubRef.current = state.hub;
   useEffect(() => {
@@ -50,7 +53,10 @@ export function CoreMap({ state }: { state: CoreState }) {
     ).addTo(m);
     tiles.on("loading", () => setTilesLoading(true));
     tiles.on("load", () => setTilesLoading(false));
-    tiles.on("tileerror", () => { setTilesFailed(true); setTilesLoading(false); });
+    tiles.on("tileerror", () => {
+      setTilesFailed(true);
+      setTilesLoading(false);
+    });
     railLayer.current = L.layerGroup().addTo(m);
     trainLayer.current = L.layerGroup().addTo(m);
     const labels = () => {
@@ -107,11 +113,20 @@ export function CoreMap({ state }: { state: CoreState }) {
       const tip = document.createElement("span");
       tip.textContent = stationName(station.id);
       const details = document.createElement("div");
-      details.textContent = `${stationName(station.id)} (${station.code}) · ${station.connected ? "Terhubung" : "Belum terhubung ke jalur kompatibel"} · kelas ${station.stationClass ?? "belum terverifikasi"}`;
+      details.textContent = `${stationName(station.id)} (${station.code}) · ${station.connected ? "Terhubung" : "Belum terhubung ke jalur kompatibel"} · kelas game ${gameStationClassLabel(station.gameClass ?? "small")} · demand ${station.demandProfile.baseDailyDemand}/hari`;
       const marker = L.circleMarker(
         [station.coordinates.lat, station.coordinates.lng],
         {
-          radius: station.id === state.hub ? 8 : stop ? 6 : 4,
+          radius:
+            station.id === state.hub
+              ? 9
+              : station.gameClass === "large"
+                ? 8
+                : station.gameClass === "semi-large"
+                  ? 6
+                  : stop
+                    ? 5
+                    : 3,
           color: "#fff",
           weight: 2,
           fillColor: stop
@@ -211,7 +226,9 @@ export function CoreMap({ state }: { state: CoreState }) {
             ? "Geometri OSM · batas operasi belum terverifikasi"
             : `Posisi stasiun OSM · ${CORE_NETWORK_SOURCE.intermediateStationCount} stasiun antara · jalur skematis`}
         </small>
-        {tilesLoading && !tilesFailed && <small role="status">Memuat peta dasar…</small>}
+        {tilesLoading && !tilesFailed && (
+          <small role="status">Memuat peta dasar…</small>
+        )}
         {tilesFailed && (
           <small className="warning-text">
             Peta dasar gagal dimuat. Jalur dan operasi tetap tersedia.

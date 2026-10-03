@@ -1,26 +1,53 @@
 import { JAVA_STATION_CATALOG } from "./stations.js";
 import { JAVA_TRACK_CORRIDOR_SEGMENTS } from "./tracks.js";
 import { CORE_STATION_PROVINCE } from "./gameplay-v7.js";
-import { INTERMEDIATE_STATIONS, SCHEMATIC_CORRIDOR_STOPS } from "./intermediate-stations.js";
-import { EAST_JAVA_STATIONS, EAST_JAVA_CORRIDORS, EAST_JAVA_CORRIDOR_STOPS } from "./east-java.js";
+import { INTERMEDIATE_STATIONS, SCHEMATIC_CORRIDOR_STOPS, } from "./intermediate-stations.js";
+import { EAST_JAVA_STATIONS, EAST_JAVA_CORRIDORS, EAST_JAVA_CORRIDOR_STOPS, } from "./east-java.js";
 import { LEGACY_INTERMEDIATE_SEGMENTS } from "./legacy-intermediate-segments.js";
-import { stationDemandFor } from "./station-demand.js";
+import { stationDemandFor, } from "./station-demand.js";
+import { gameStationClass, stationHubProximities, } from "./station-class.js";
 import { OSM_NETWORK_DATA } from "./osm-network-data.js";
-export const CORE_GAME_CORRIDORS = [...JAVA_TRACK_CORRIDOR_SEGMENTS, ...EAST_JAVA_CORRIDORS];
-const corridorStops = { ...SCHEMATIC_CORRIDOR_STOPS, ...EAST_JAVA_CORRIDOR_STOPS };
+export const CORE_GAME_CORRIDORS = [
+    ...JAVA_TRACK_CORRIDOR_SEGMENTS,
+    ...EAST_JAVA_CORRIDORS,
+];
+const corridorStops = {
+    ...SCHEMATIC_CORRIDOR_STOPS,
+    ...EAST_JAVA_CORRIDOR_STOPS,
+};
 const activeIntermediateIds = new Set(Object.entries(corridorStops)
     .filter(([corridor]) => !OSM_NETWORK_DATA.legacyRoutes[corridor])
     .flatMap(([id, stops]) => {
     const parent = CORE_GAME_CORRIDORS.find((track) => track.id === id);
     return [parent.originStationId, ...stops, parent.destinationStationId];
 }));
-const curatedStations = [...INTERMEDIATE_STATIONS, ...EAST_JAVA_STATIONS].map((station) => ({
-    ...station, kind: "station", connected: activeIntermediateIds.has(station.id), region: "JAVA_INTERMEDIATE",
-    platformCount: 1, maxTrainLengthMeters: 180,
-    facilities: { hasCargoTerminal: false, hasDepotConnection: false, hasExecutiveLounge: false },
-    demandProfile: { baseDailyDemand: 1000, commuterShare: 0.5, businessShare: 0.25, touristShare: 0.25 },
-    provenance: { source: `OpenStreetMap ${station.osmId} (ODbL 1.0)`, sourceDate: "2026-10-02", verified: false,
-        notes: "Actual OSM station position/code. Corridor membership/province curated for game; class and platform unverified; demand is a station-specific provisional catchment estimate. Rail connections remain schematic." },
+const curatedStations = [
+    ...INTERMEDIATE_STATIONS,
+    ...EAST_JAVA_STATIONS,
+].map((station) => ({
+    ...station,
+    kind: "station",
+    connected: activeIntermediateIds.has(station.id),
+    region: "JAVA_INTERMEDIATE",
+    platformCount: 1,
+    maxTrainLengthMeters: 180,
+    facilities: {
+        hasCargoTerminal: false,
+        hasDepotConnection: false,
+        hasExecutiveLounge: false,
+    },
+    demandProfile: {
+        baseDailyDemand: 1000,
+        commuterShare: 0.5,
+        businessShare: 0.25,
+        touristShare: 0.25,
+    },
+    provenance: {
+        source: `OpenStreetMap ${station.osmId} (ODbL 1.0)`,
+        sourceDate: "2026-10-02",
+        verified: false,
+        notes: "Actual OSM station position/code. Corridor membership/province curated for game; class and platform unverified; demand is a station-specific provisional catchment estimate. Rail connections remain schematic.",
+    },
 }));
 const originalStations = new Map(JAVA_STATION_CATALOG.map((s) => [s.id, s]));
 const importedStations = OSM_NETWORK_DATA.stations.map((s) => {
@@ -64,14 +91,13 @@ const stationCatalog = [
     ...curatedStations.filter((station) => !importedIds.has(station.id)),
     ...importedStations,
 ];
-export const CORE_OPERATING_STATIONS = stationCatalog.map((station) => {
+const stationsWithDemand = stationCatalog.map((station) => {
     if (station.kind === "junction")
         return station;
     const legacy = originalStations.get(station.id)?.demandProfile;
     const { profile, context } = stationDemandFor(station.code, station.name, legacy);
     return { ...station, demandProfile: profile, demandContext: context };
 });
-export const CORE_SELECTABLE_STATIONS = CORE_OPERATING_STATIONS.filter((s) => s.kind === "station");
 /** Split game corridors at actual station points; never claim the chords are rail geometry. */
 const schematicTracks = [];
 const schematicRoutes = {};
@@ -83,8 +109,8 @@ for (const parent of CORE_GAME_CORRIDORS) {
         continue;
     const ids = [parent.originStationId, ...stops, parent.destinationStationId];
     const weights = ids.slice(1).map((to, index) => {
-        const a = CORE_OPERATING_STATIONS.find((station) => station.id === ids[index]).coordinates;
-        const b = CORE_OPERATING_STATIONS.find((station) => station.id === to).coordinates;
+        const a = stationsWithDemand.find((station) => station.id === ids[index]).coordinates;
+        const b = stationsWithDemand.find((station) => station.id === to).coordinates;
         return railDistance([a.lat, a.lng], [b.lat, b.lng]);
     });
     const total = weights.reduce((sum, km) => sum + km, 0);
@@ -92,20 +118,40 @@ for (const parent of CORE_GAME_CORRIDORS) {
     ids.slice(1).forEach((to, index) => {
         const id = `${parent.id}:stop:${ids[index]}:${to}`;
         schematicRoutes[parent.id].push(id);
-        schematicTracks.push({ ...parent, id, name: `${CORE_OPERATING_STATIONS.find((station) => station.id === ids[index]).code} – ${CORE_OPERATING_STATIONS.find((station) => station.id === to).code}`,
-            originStationId: ids[index], destinationStationId: to,
-            distanceKm: parent.distanceKm * weights[index] / total,
-            accessKeys: [parent.id], schematic: true,
-            provenance: { source: "Game corridor interpolation using OSM station positions", sourceDate: "2026-10-02", verified: false,
-                notes: "Schematic connection; distances are game estimates scaled to the parent corridor, not surveyed rail distances. Speed inherits the provisional game corridor limit." }, });
+        schematicTracks.push({
+            ...parent,
+            id,
+            name: `${stationsWithDemand.find((station) => station.id === ids[index]).code} – ${stationsWithDemand.find((station) => station.id === to).code}`,
+            originStationId: ids[index],
+            destinationStationId: to,
+            distanceKm: (parent.distanceKm * weights[index]) / total,
+            accessKeys: [parent.id],
+            schematic: true,
+            provenance: {
+                source: "Game corridor interpolation using OSM station positions",
+                sourceDate: "2026-10-02",
+                verified: false,
+                notes: "Schematic connection; distances are game estimates scaled to the parent corridor, not surveyed rail distances. Speed inherits the provisional game corridor limit.",
+            },
+        });
     });
 }
 const legacyIntermediateTracks = LEGACY_INTERMEDIATE_SEGMENTS.map((edge) => {
     const parent = JAVA_TRACK_CORRIDOR_SEGMENTS.find((track) => track.id === edge.parentId);
-    return { ...parent, id: edge.id, originStationId: edge.from, destinationStationId: edge.to,
-        distanceKm: edge.distanceKm, accessKeys: [edge.parentId], schematic: true,
-        provenance: { source: "Preserved first intermediate-station game network", sourceDate: "2026-10-02", verified: false,
-            notes: "Compatibility edge for saved routes; preserves the original schematic endpoints and game distance. Not used by new routing." },
+    return {
+        ...parent,
+        id: edge.id,
+        originStationId: edge.from,
+        destinationStationId: edge.to,
+        distanceKm: edge.distanceKm,
+        accessKeys: [edge.parentId],
+        schematic: true,
+        provenance: {
+            source: "Preserved first intermediate-station game network",
+            sourceDate: "2026-10-02",
+            verified: false,
+            notes: "Compatibility edge for saved routes; preserves the original schematic endpoints and game distance. Not used by new routing.",
+        },
     };
 });
 const legacyIntermediateIds = new Set(legacyIntermediateTracks.map((edge) => edge.id));
@@ -140,7 +186,32 @@ export const CORE_OPERATING_TRACKS = [
         },
     })),
 ];
-export const CORE_ROUTING_TRACKS = CORE_OPERATING_TRACKS.filter((t) => !OSM_NETWORK_DATA.legacyRoutes[t.id] && !schematicRoutes[t.id] && !legacyIntermediateIds.has(t.id));
+export const CORE_ROUTING_TRACKS = CORE_OPERATING_TRACKS.filter((t) => !OSM_NETWORK_DATA.legacyRoutes[t.id] &&
+    !schematicRoutes[t.id] &&
+    !legacyIntermediateIds.has(t.id));
+const hubProximities = stationHubProximities(stationsWithDemand, CORE_ROUTING_TRACKS);
+export const CORE_OPERATING_STATIONS = stationsWithDemand.map((station) => {
+    if (station.kind === "junction")
+        return station;
+    const hubProximity = hubProximities.get(station.id);
+    return {
+        ...station,
+        gameClass: gameStationClass(station.code),
+        demandContext: station.demandContext
+            ? {
+                ...station.demandContext,
+                notes: station.demandContext.notes +
+                    " Gameplay class is user-defined; final catchment demand includes the shortest-rail-distance hub multiplier exposed separately.",
+            }
+            : undefined,
+        hubProximity,
+        demandProfile: {
+            ...station.demandProfile,
+            baseDailyDemand: Math.round(station.demandProfile.baseDailyDemand * hubProximity.demandMultiplier),
+        },
+    };
+});
+export const CORE_SELECTABLE_STATIONS = CORE_OPERATING_STATIONS.filter((s) => s.kind === "station");
 export const CORE_NETWORK_SOURCE = {
     importedAt: OSM_NETWORK_DATA.importedAt,
     importedStationCount: importedStations.filter((s) => s.kind === "station")
@@ -175,7 +246,7 @@ export function operatingTrackGeometry(id, from) {
     }
     if (!points)
         points = [track.originStationId, track.destinationStationId].map((id) => {
-            const s = CORE_OPERATING_STATIONS.find((s) => s.id === id);
+            const s = stationsWithDemand.find((s) => s.id === id);
             return [s.coordinates.lat, s.coordinates.lng];
         });
     return from && from !== track.originStationId

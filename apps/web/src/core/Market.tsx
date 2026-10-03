@@ -1,94 +1,63 @@
 import { useState } from "react";
-import { Check } from "lucide-react";
 import { CORE_PRODUCTS } from "@railway/game-data";
 import { coreProduct, stationName, type CoreState } from "@railway/simulation";
 import { Asset, Card, compact, remaining, type Act } from "./presentation";
-
+import { CompactWorkspace, PagedList, ResponsiveColumns } from "./Compact";
 export function Market({ state: s, act }: { state: CoreState; act: Act }) {
-  const [kind, setKind] = useState("all"),
-    [qty, setQty] = useState<Record<string, number>>({ "ec-standard": 4 });
-  const [depot, setDepot] = useState(s.hub);
+  const [productId, setProduct] = useState("cc201"),
+    [qty, setQty] = useState(1),
+    [depot, setDepot] = useState(s.hub);
+  const p = coreProduct(productId),
+    pending = s.orders.filter((o) => !o.accepted);
   return (
-    <div className="panel-scroll">
-      <Card title="Starter ready-stock">
-        <p>
-          CC201 baru + 4 Ekonomi Standar + pembangkit. Vendor menyediakan paket
-          awal di hub; beli unit terpisah, lakukan acceptance, lalu rakit
-          trainset.
-        </p>
-        <p className="muted">
-          424 kursi. Sarana baru berikutnya memakai waktu produksi 3–14 hari
-          game. Harga, kondisi dan waktu adalah balance prototype.
-        </p>
-      </Card>
-      <label>
-        Dipo penerima
-        <select value={depot} onChange={(e) => setDepot(e.target.value)}>
-          {s.depots.map((d) => (
-            <option key={d.station} value={d.station}>
-              {stationName(d.station)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="filter-chips">
-        {[
-          { id: "all", label: "Semua" },
-          { id: "loco", label: "Lokomotif" },
-          { id: "coach", label: "Penumpang" },
-          { id: "generator", label: "Pembangkit" },
-          { id: "dining", label: "Restorasi" },
-        ].map((c) => (
-          <button
-            key={c.id}
-            className={kind === c.id ? "selected" : ""}
-            onClick={() => setKind(c.id)}
-          >
-            {c.label}
-          </button>
-        ))}
-      </div>
-      {CORE_PRODUCTS.filter(
-        (p) =>
-          !p.id.endsWith("retrofit") && (kind === "all" || p.kind === kind),
-      ).map((p) => (
-        <Card key={p.id} className="product-card">
-          <div className="product-top">
-            <span className="pill">
-              {p.kind === "loco"
-                ? "LOKOMOTIF"
-                : (p.serviceClass ?? "SARANA SERVIS")}
-            </span>
-            <strong>{compact(p.price)}</strong>
-          </div>
-          <Asset id={p.id} />
-          <h2>{p.name}</h2>
-          <div className="stats">
-            <div>
-              <strong>{p.seats || "—"}</strong>
-              <small>Kursi</small>
-            </div>
-            <div>
-              <strong>{p.speed}</strong>
-              <small>km/h</small>
-            </div>
-            <div>
-              <strong>{p.body === "stainless" ? "SS" : "MS"}</strong>
-              <small>Badan</small>
-            </div>
-          </div>
-          <div className="buy-row">
+    <CompactWorkspace>
+      <Card title="Beli sarana">
+        <ResponsiveColumns>
+          <div>
+            <label>
+              Depo penerima
+              <select value={depot} onChange={(e) => setDepot(e.target.value)}>
+                {s.depots.map((d) => (
+                  <option key={d.station} value={d.station}>
+                    {stationName(d.station)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Sarana
+              <select
+                aria-label="Sarana pasar"
+                value={productId}
+                onChange={(e) => {
+                  setProduct(e.target.value);
+                  setQty(
+                    e.target.value === "ec-standard"
+                      ? 4
+                      : e.target.value.startsWith("cargo-")
+                        ? 2
+                        : 1,
+                  );
+                }}
+              >
+                {CORE_PRODUCTS.filter((p) => !p.id.endsWith("retrofit")).map(
+                  (p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} · {compact(p.price)}
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
             <label>
               Jumlah
               <input
                 aria-label={`Jumlah ${p.name}`}
                 type="number"
-                min="1"
-                max="20"
-                value={qty[p.id] ?? 1}
-                onChange={(e) =>
-                  setQty({ ...qty, [p.id]: Number(e.target.value) })
-                }
+                min={1}
+                max={20}
+                value={qty}
+                onChange={(e) => setQty(Number(e.target.value))}
               />
             </label>
             <button
@@ -97,24 +66,58 @@ export function Market({ state: s, act }: { state: CoreState; act: Act }) {
                 act(
                   {
                     type: "order",
-                    productId: p.id,
-                    quantity: qty[p.id] ?? 1,
+                    productId,
+                    quantity: qty,
                     station: depot,
                     starter: true,
                   },
-                  "Pesanan tercatat. Terima sarana saat siap; unit belum masuk formasi.",
+                  "Pesanan disimpan. Buka tab Pesanan untuk menerima sarana saat siap.",
                 )
               }
             >
-              Pesan · {compact(p.price * (qty[p.id] ?? 1))}
+              Pesan · {compact(p.price * qty)}
             </button>
           </div>
-        </Card>
-      ))}
-      <Card title="Pesanan & acceptance">
-        {s.orders
-          .filter((o) => !o.accepted)
-          .map((o) => (
+          <div>
+            <Asset id={p.id} />
+            <h2>{p.name}</h2>
+            <div className="stats">
+              <div>
+                <strong>
+                  {p.cargoTons ? `${p.cargoTons} t` : p.seats || "—"}
+                </strong>
+                <small>{p.cargoTons ? "Muatan per gerbong" : "Kursi"}</small>
+              </div>
+              <div>
+                <strong>{p.speed}</strong>
+                <small>km/jam maksimum</small>
+              </div>
+              <div>
+                <strong>{p.tank.toLocaleString("id-ID")}</strong>
+                <small>Tangki game (L)</small>
+              </div>
+            </div>
+            <p>
+              Harga {compact(p.price)} per unit · pengantaran{" "}
+              {p.deliveryMinutes} menit game.
+            </p>
+            <p className="muted">
+              Paket pertama 1 CC201 + 4 Ekonomi Standar + 1 pembangkit tersedia
+              langsung di hub (424 kursi). Untuk kargo: lokomotif + sedikitnya 2
+              gerbong sesuai jenis kontrak; tanpa kereta penumpang.
+            </p>
+            <small className="muted">
+              Harga, tangki dan durasi disesuaikan untuk game. Ilustrasi kargo
+              adalah konsep.
+            </small>
+          </div>
+        </ResponsiveColumns>
+      </Card>
+      <Card title={`Pesanan (${pending.length})`}>
+        {!pending.length && <p>Belum ada pesanan menunggu acceptance.</p>}
+        <PagedList
+          items={[...pending].reverse()}
+          render={(o) => (
             <div className="list-row" key={o.id}>
               <div>
                 <b>
@@ -130,20 +133,16 @@ export function Market({ state: s, act }: { state: CoreState; act: Act }) {
                 onClick={() =>
                   act(
                     { type: "accept", orderId: o.id },
-                    "Unit diterima dan tersedia di inventori.",
+                    "Sarana diterima. Rakit trainset lewat Armada atau kelola inventori di Depo.",
                   )
                 }
               >
-                Terima <Check size={14} />
+                Terima
               </button>
             </div>
-          ))}
+          )}
+        />
       </Card>
-      <p className="muted">
-        Ilustrasi konsep dari aset Anda; beberapa varian berbagi artwork. CC203
-        tersedia dalam kit, tetapi belum dijual karena katalog spesifikasinya
-        belum tersedia.
-      </p>
-    </div>
+    </CompactWorkspace>
   );
 }

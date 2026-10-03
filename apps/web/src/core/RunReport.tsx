@@ -17,9 +17,11 @@ export function RunReport({
   const leg = r.legs[Math.min(r.leg, r.legs.length - 1)]!;
   const movement = coreRunMotion(r, s.minute);
   const progress =
-    r.status === "completed"
-      ? 1
-      : Math.max(0, Math.min(1, (s.minute - r.start) / (r.end - r.start)));
+    r.status === "cancelled"
+      ? 0
+      : r.status === "completed"
+        ? 1
+        : Math.max(0, Math.min(1, (s.minute - r.start) / (r.end - r.start)));
   return (
     <div className="run-report">
       <div className="list-row">
@@ -27,11 +29,13 @@ export function RunReport({
           {stationName(r.origin)} → {stationName(r.destination)}
         </b>
         <span className="pill good">
-          {r.status === "completed"
-            ? "Selesai"
-            : r.phase === "dwell"
-              ? "Berhenti"
-              : `${movement.speedKmh.toFixed(0)} km/h · ${movement.phase}`}
+          {r.status === "cancelled"
+            ? "Dibatalkan"
+            : r.status === "completed"
+              ? "Selesai"
+              : r.phase === "dwell"
+                ? "Berhenti"
+                : `${movement.speedKmh.toFixed(0)} km/h · ${movement.phase}`}
         </span>
       </div>
       <div className="progress">
@@ -44,14 +48,20 @@ export function RunReport({
       <div className="stats">
         <div>
           <strong>
-            {Math.round((r.passengerKm / Math.max(1, r.seatKm)) * 100)}%
+            {r.cargoTons
+              ? `${r.cargoTons} t`
+              : `${Math.round((r.passengerKm / Math.max(1, r.seatKm)) * 100)}%`}
           </strong>
-          <small>LF kursi-km</small>
+          <small>{r.cargoTons ? "Muatan kontrak" : "LF kursi-km"}</small>
         </div>
         <div>
           <strong>{compact(r.revenue)}</strong>
           <small>
-            {r.status === "completed" ? "Pendapatan" : "Tiket dalam layanan"}
+            {r.status === "completed"
+              ? "Pendapatan"
+              : r.cargoContractId
+                ? "Bayaran setelah tiba"
+                : "Tiket dalam layanan"}
           </small>
         </div>
         <div>

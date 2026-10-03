@@ -1,435 +1,38 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   coreFixedRoundTrip,
+  coreAutomaticRoundTrips,
   coreDraftScheduleRuns,
   coreRunStationTimes,
-  coreDailySchedule,
+  previewCoreDiagram,
   coreReadiness,
   forecastCore,
-  previewCoreDiagram,
-  coreDutyTurnaround,
   stationName,
   type CoreDuty,
   type CoreRun,
   type CoreState,
 } from "@railway/simulation";
-import { Card, clock, when, type Act } from "./presentation";
-import { TimetableEditor } from "./TimetableEditor";
-
-export function SchedulePlanner({
-  state: s,
-  act,
-}: {
-  state: CoreState;
-  act: Act;
-}) {
-  const [tid, setTid] = useState(s.trainsets[0]?.id ?? ""),
-    [rid, setRid] = useState(s.services[0]?.id ?? "");
-  const [mode, setMode] = useState("pp"),
-    [repeat, setRepeat] = useState(1440),
-    [departure, setDeparture] = useState(480);
-  const [duties, setDuties] = useState<CoreDuty[]>([]),
-    [automatic, setAutomatic] = useState(true);
-  const [day, setDay] = useState(Math.floor(s.minute / 1440));
-  const planner = useRef<HTMLDivElement>(null);
-  const train = s.trainsets.find((t) => t.id === tid),
-    relation = s.services.find((r) => r.id === rid);
-  const reverse = !!relation && train?.location === relation.stations.at(-1);
-  useEffect(() => {
-    if (!tid && s.trainsets.length) setTid(s.trainsets[0]!.id);
-    if (!rid && s.services.length) setRid(s.services[0]!.id);
-  }, [s.trainsets.length, s.services.length, tid, rid]);
-  useEffect(() => {
-    if (automatic && tid && rid && mode === "pp")
-      setDuties(coreFixedRoundTrip(s, tid, rid, reverse, departure, repeat));
-  }, [tid, rid, mode, repeat, automatic]);
-  const setAutoPP = () => {
-    if (train && relation) {
-      setDuties(coreFixedRoundTrip(s, tid, rid, reverse, departure, repeat));
-      setAutomatic(false);
-    }
-  };
-  const preview = previewCoreDiagram(s, tid, repeat, duties);
-  const draftRuns =
-    mode === "once" && train && relation
-      ? [
-          forecastCore(
-            s,
-            tid,
-            rid,
-            reverse,
-            Math.floor(s.minute / 1440) * 1440 +
-              departure +
-              (departure < s.minute % 1440 ? 1440 : 0),
-          ),
-        ]
-      : train && duties.length
-        ? coreDraftScheduleRuns(s, tid, repeat, duties)
-        : [];
-  const active = s.plans.filter((p) => p.active && p.trainsetId === tid);
-  const busy = s.runs.some(
-    (r) =>
-      r.trainsetId === tid && ["running", "held", "stopped"].includes(r.status),
-  );
-  const load = (trainsetId: string) => {
-    const plans = s.plans.filter(
-      (p) => p.active && p.trainsetId === trainsetId,
-    );
-    if (!plans.length) return;
-    setAutomatic(false);
-    setTid(trainsetId);
-    setRid(plans[0]!.serviceId);
-    setRepeat(plans[0]!.cycle);
-    setMode(plans.every((p) => p.once) ? "once" : "manual");
-    setDeparture(plans[0]!.offset % 1440);
-    setDuties(
-      plans.map((p) => ({
-        serviceId: p.serviceId,
-        reverse: p.reverse,
-        offset: p.offset,
-      })),
-    );
-    requestAnimationFrame(() =>
-      planner.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-    );
-  };
-  const add = () => {
-    if (!train || !relation) return;
-    const last = draftRuns.at(-1);
-    const chosen =
-      last &&
-      ![relation.stations[0], relation.stations.at(-1)].includes(
-        last.destination,
-      )
-        ? s.services.find((r) => r.id === last.serviceId)!
-        : relation;
-    const back = last ? chosen.stations.at(-1) === last.destination : reverse;
-    const next = forecastCore(s, tid, chosen.id, back, 0);
-    const offset = last
-      ? Math.ceil(last.end + coreDutyTurnaround(last, next)) % repeat
-      : departure;
-    setAutomatic(false);
-    setDuties([...duties, { serviceId: chosen.id, reverse: back, offset }]);
-  };
-  const readiness =
-    train && draftRuns.length
-      ? coreReadiness(
-          s,
-          train,
-          s.services.find((r) => r.id === draftRuns[0]!.serviceId)!,
-          draftRuns[0]!.origin ===
-            s.services
-              .find((r) => r.id === draftRuns[0]!.serviceId)!
-              .stations.at(-1),
-        )
-      : [];
-  const daily = coreDailySchedule(s, day);
-  return (
-    <>
-      <div ref={planner}>
-        <Card title="Buat atau ubah jadwal">
-          <p>
-            1. Pilih kereta dan relasi. 2. Atur jam. 3. Tinjau pemberhentian,
-            lalu simpan. Semua penjadwalan dilakukan di sini.
-          </p>
-          {!s.trainsets.length && (
-            <p className="warning-text">
-              Buat trainset di Armada terlebih dahulu, lalu kembali ke Jadwal.
-            </p>
-          )}
-          {!s.services.length && (
-            <p className="warning-text">
-              Tekan Buat relasi di atas untuk menentukan tujuan dan stasiun
-              pemberhentian.
-            </p>
-          )}
-          <label>
-            Trainset
-            <select
-              aria-label="Trainset jadwal"
-              value={tid}
-              onChange={(e) => {
-                setTid(e.target.value);
-                setAutomatic(true);
-              }}
-            >
-              <option value="">Pilih trainset</option>
-              {s.trainsets.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} · {stationName(t.location)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Relasi
-            <select
-              aria-label="Relasi jadwal"
-              value={rid}
-              onChange={(e) => {
-                setRid(e.target.value);
-                setAutomatic(true);
-              }}
-            >
-              <option value="">Pilih relasi</option>
-              {s.services.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          {active.length > 0 && (
-            <button onClick={() => load(tid)}>
-              Muat jadwal tersimpan untuk diedit
-            </button>
-          )}
-          <label>
-            Jenis jadwal
-            <select
-              aria-label="Jenis jadwal"
-              value={mode}
-              onChange={(e) => {
-                setMode(e.target.value);
-                setAutomatic(true);
-                if (e.target.value === "manual") setDuties([]);
-              }}
-            >
-              <option value="pp">PP otomatis pada jam tetap</option>
-              <option value="manual">Susun sendiri / beberapa relasi</option>
-              <option value="once">Sekali jalan</option>
-            </select>
-          </label>
-          {mode !== "once" && (
-            <label>
-              Ulangi jadwal
-              <select
-                aria-label="Ulangi jadwal"
-                value={repeat}
-                onChange={(e) => setRepeat(Number(e.target.value))}
-              >
-                <option value={1440}>Setiap hari</option>
-                <option value={2880}>Setiap 2 hari</option>
-                <option value={4320}>Setiap 3 hari</option>
-              </select>
-            </label>
-          )}
-          <p className="muted">
-            {mode === "once"
-              ? "Berangkat satu kali dari lokasi kereta saat ini. Setelah tiba, kereta menunggu jadwal berikutnya."
-              : `Jam yang Anda atur akan diulang ${repeat === 1440 ? "setiap hari" : `setiap ${repeat / 1440} hari`} dalam waktu game. Contoh: pergi pukul 08:00 hari ini, lalu pukul 08:00 lagi ${repeat === 1440 ? "besok" : `${repeat / 1440} hari kemudian`}. Jadwal tetap diproses saat aplikasi ditutup.`}
-          </p>
-          {mode !== "manual" && (
-            <label>
-              Jam berangkat{" "}
-              {relation && train ? `dari ${stationName(train.location)}` : ""}
-              <input
-                aria-label="Jam berangkat tetap"
-                type="time"
-                value={clock(departure)}
-                onChange={(e) => {
-                  if (e.target.value) {
-                    const [h, m] = e.target.value.split(":").map(Number);
-                    setDeparture(h! * 60 + m!);
-                    setAutomatic(false);
-                    if (mode === "pp" && train && relation)
-                      setDuties(
-                        coreFixedRoundTrip(
-                          s,
-                          tid,
-                          rid,
-                          reverse,
-                          h! * 60 + m!,
-                          repeat,
-                        ),
-                      );
-                  }
-                }}
-              />
-            </label>
-          )}
-          {mode === "pp" && (
-            <>
-              <p>
-                Jam pulang dihitung dari estimasi tiba + 60 menit persiapan.
-                Anda dapat memindahkan kedua blok atau mengubah jamnya di
-                timetable.
-              </p>
-              <button disabled={!train || !relation} onClick={setAutoPP}>
-                Susun ulang PP otomatis
-              </button>
-            </>
-          )}
-          {mode !== "once" && train && (
-            <>
-              <button disabled={!relation || duties.length >= 24} onClick={add}>
-                Tambah perjalanan berikutnya
-              </button>
-              <TimetableEditor
-                state={s}
-                trainsetId={tid}
-                cycle={repeat}
-                duties={duties}
-                onChange={(next) => {
-                  setAutomatic(false);
-                  setDuties(next);
-                }}
-              />
-            </>
-          )}
-          {mode === "once" && draftRuns[0] && (
-            <p>
-              Keberangkatan pertama: {when(draftRuns[0].start)} · estimasi tiba{" "}
-              {when(draftRuns[0].end)}.
-            </p>
-          )}
-          {readiness.length > 0 && (
-            <div className="readiness warning">
-              <div>
-                <b>Periksa sebelum keberangkatan</b>
-                {readiness.map((reason) => (
-                  <p key={reason}>{reason}</p>
-                ))}
-              </div>
-            </div>
-          )}
-          {busy && (
-            <p className="warning-text">
-              Jadwal bisa ditinjau, tetapi tunggu perjalanan aktif selesai atau
-              dipulihkan sebelum menyimpan perubahan.
-            </p>
-          )}
-          <button
-            className="primary"
-            disabled={
-              !train ||
-              !relation ||
-              busy ||
-              (mode !== "once" && preview.issues.length > 0)
-            }
-            onClick={() =>
-              act(
-                mode === "once"
-                  ? {
-                      type: "schedule",
-                      trainsetId: tid,
-                      serviceId: rid,
-                      reverse,
-                      roundTrip: false,
-                      cycle: 1440,
-                      offset: departure,
-                      replace: true,
-                    }
-                  : {
-                      type: "diagram",
-                      trainsetId: tid,
-                      cycle: repeat,
-                      duties,
-                      replace: true,
-                    },
-                "Jadwal disimpan. Keberangkatan mengikuti jam yang Anda tentukan.",
-              )
-            }
-          >
-            Simpan {active.length ? "perubahan " : ""}jadwal
-          </button>
-          <p className="muted">
-            Menyimpan mengganti jadwal trainset ini setelah validasi. Kereta
-            tetap harus siap, berada di stasiun yang benar, dan mendapat lintas
-            bebas saat berangkat.
-          </p>
-          {!!draftRuns.length && (
-            <>
-              <h3>Rekap rancangan perjalanan</h3>
-              {draftRuns.map((run, i) => (
-                <StopSheet key={i} run={run} trainName={train?.name ?? ""} />
-              ))}
-            </>
-          )}
-        </Card>
-      </div>
-      <Card title="Jadwal tersimpan">
-        {s.trainsets
-          .filter((t) => s.plans.some((p) => p.active && p.trainsetId === t.id))
-          .map((t) => (
-            <div className="list-row" key={t.id}>
-              <div>
-                <b>{t.name}</b>
-                <small>
-                  {
-                    s.plans.filter((p) => p.active && p.trainsetId === t.id)
-                      .length
-                  }{" "}
-                  perjalanan terjadwal
-                </small>
-              </div>
-              <button onClick={() => load(t.id)}>Edit timetable</button>
-              <button
-                onClick={() =>
-                  act(
-                    { type: "disableDiagram", trainsetId: t.id },
-                    "Jadwal dijeda.",
-                  )
-                }
-              >
-                Jeda jadwal
-              </button>
-            </div>
-          ))}
-        {!s.plans.some((p) => p.active) && (
-          <p>Belum ada jadwal tersimpan yang aktif.</p>
-        )}
-      </Card>
-      <Card title="Rekap jadwal harian">
-        <label>
-          Hari operasi
-          <select
-            aria-label="Hari rekap jadwal"
-            value={day}
-            onChange={(e) => setDay(Number(e.target.value))}
-          >
-            {Array.from(
-              { length: 4 },
-              (_, i) => Math.floor(s.minute / 1440) + i,
-            ).map((d) => (
-              <option key={d} value={d}>
-                Hari {d + 1}
-                {d === Math.floor(s.minute / 1440) ? " · hari ini" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p className="muted">
-          Jadwal rencana semua trainset, termasuk perjalanan dari hari
-          sebelumnya yang tiba pada hari ini. Waktu adalah waktu game; kondisi
-          lintas dapat mengubah waktu aktual.
-        </p>
-        {daily.map((run, i) => (
-          <StopSheet
-            key={`${run.planId}:${i}`}
-            run={run}
-            trainName={
-              s.trainsets.find((t) => t.id === run.trainsetId)?.name ?? ""
-            }
-          />
-        ))}
-        {!daily.length && <p>Tidak ada perjalanan terjadwal pada hari ini.</p>}
-      </Card>
-    </>
-  );
-}
-function StopSheet({ run, trainName }: { run: CoreRun; trainName: string }) {
+import { Card, clock, compact, when, type Act } from "./presentation";
+import { PagedList, ResponsiveColumns } from "./Compact";
+const minutes = (value: string) => {
+  const [h, m] = value.split(":").map(Number);
+  return h! * 60 + m!;
+};
+export function CompactStopSheet({ run }: { run: CoreRun }) {
+  const [page, setPage] = useState(0),
+    rows = coreRunStationTimes(run),
+    pages = Math.ceil(rows.length / 3),
+    current = Math.min(page, pages - 1);
   return (
     <div className="stop-sheet">
       <b>
-        {trainName} · {stationName(run.origin)} → {stationName(run.destination)}
+        {stationName(run.origin)} → {stationName(run.destination)}
       </b>
       <small>
-        {when(run.start)} → {when(Math.ceil(run.end))}
+        {when(run.start)} — {when(run.end)} · {Math.ceil(run.end - run.start)}{" "}
+        menit
       </small>
-      <table
-        aria-label={`Pemberhentian ${stationName(run.origin)} ke ${stationName(run.destination)}`}
-      >
+      <table>
         <thead>
           <tr>
             <th>Tujuan</th>
@@ -438,19 +41,541 @@ function StopSheet({ run, trainName }: { run: CoreRun; trainName: string }) {
           </tr>
         </thead>
         <tbody>
-          {coreRunStationTimes(run).map((row, i) => (
-            <tr key={i}>
+          {rows.slice(current * 3, (current + 1) * 3).map((row) => (
+            <tr key={row.stationId}>
               <td>{stationName(row.stationId)}</td>
               <td>
-                {row.arrival === null ? "—" : when(Math.ceil(row.arrival))}
+                {row.arrival === null
+                  ? "—"
+                  : clock(row.arrival) +
+                    (Math.floor(row.arrival / 1440) >
+                    Math.floor(run.start / 1440)
+                      ? ` (+${Math.floor(row.arrival / 1440) - Math.floor(run.start / 1440)} hari)`
+                      : "")}
               </td>
-              <td>
-                {row.departure === null ? "—" : when(Math.ceil(row.departure))}
-              </td>
+              <td>{row.departure === null ? "—" : clock(row.departure)}</td>
             </tr>
           ))}
         </tbody>
       </table>
+      {pages > 1 && (
+        <div className="pager">
+          <button disabled={!current} onClick={() => setPage(current - 1)}>
+            ←
+          </button>
+          <span>
+            Pemberhentian {current + 1}/{pages}
+          </span>
+          <button
+            disabled={current + 1 === pages}
+            onClick={() => setPage(current + 1)}
+          >
+            →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+export function SchedulePlanner({
+  state: s,
+  act,
+  onDirty,
+}: {
+  state: CoreState;
+  act: Act;
+  onDirty: (dirty: boolean) => void;
+}) {
+  const [tid, setTid] = useState(s.trainsets[0]?.id ?? ""),
+    [rid, setRid] = useState(s.services[0]?.id ?? ""),
+    [repeat, setRepeat] = useState(1440),
+    [duties, setDuties] = useState<CoreDuty[]>([]),
+    [mode, setMode] = useState("pp"),
+    [dirty, setDirty] = useState(false),
+    [selected, setSelected] = useState(0),
+    [error, setError] = useState(""),
+    [refuel, setRefuel] = useState(true),
+    [nextRelation, setNextRelation] = useState(s.services[0]?.id ?? "");
+  const train = s.trainsets.find((t) => t.id === tid),
+    relation = s.services.find((r) => r.id === rid),
+    busy = s.runs.some(
+      (r) =>
+        r.trainsetId === tid &&
+        ["running", "held", "stopped"].includes(r.status),
+    );
+  const make = (
+    t: string,
+    r: string,
+    period = repeat,
+    first = Math.ceil(s.minute % 1440) + 5,
+  ) => {
+    const rel = s.services.find((x) => x.id === r),
+      tr = s.trainsets.find((x) => x.id === t);
+    if (!rel || !tr) return [];
+    return coreFixedRoundTrip(
+      s,
+      t,
+      r,
+      tr.location === rel.stations.at(-1),
+      first % 1440,
+      period,
+    );
+  };
+  const load = (t: string) => {
+    const plans = s.plans.filter((p) => p.active && p.trainsetId === t);
+    if (plans.length) {
+      setRid(plans[0]!.serviceId);
+      setRepeat(plans[0]!.cycle);
+      setMode(plans.every((p) => p.once) ? "once" : "pp");
+      setDuties(
+        plans.map((p) => ({
+          serviceId: p.serviceId,
+          reverse: p.reverse,
+          offset: p.offset,
+        })),
+      );
+    } else setDuties(make(t, rid));
+    setRefuel(
+      s.trainsets.find((x) => x.id === t)?.stationRefuel ?? plans.length === 0,
+    );
+    setSelected(0);
+    setDirty(false);
+    setError("");
+  };
+  useEffect(() => {
+    if (tid) load(tid);
+  }, []);
+  useEffect(() => onDirty(dirty), [dirty, onDirty]);
+  useEffect(() => {
+    if (!tid && s.trainsets.length) {
+      setTid(s.trainsets[0]!.id);
+      setDuties(make(s.trainsets[0]!.id, rid));
+    }
+    if (!rid && s.services.length) {
+      setRid(s.services[0]!.id);
+      setDuties(make(tid, s.services[0]!.id));
+    }
+  }, [s.services.length, s.trainsets.length, tid, rid]);
+  const change = (next: CoreDuty[]) => {
+    setDuties(next);
+    setDirty(true);
+    setError("");
+  };
+  const update = (index: number, patch: Partial<CoreDuty>) =>
+    change(duties.map((d, i) => (i === index ? { ...d, ...patch } : d)));
+  const preview = previewCoreDiagram(s, tid, repeat, duties);
+  let runs: CoreRun[] = [];
+  try {
+    if (train && duties.length)
+      runs =
+        mode === "once"
+          ? [
+              forecastCore(
+                s,
+                tid,
+                duties[0]!.serviceId,
+                duties[0]!.reverse,
+                Math.floor(s.minute / 1440) * 1440 +
+                  duties[0]!.offset +
+                  (duties[0]!.offset < s.minute % 1440 ? 1440 : 0),
+              ),
+            ]
+          : coreDraftScheduleRuns(s, tid, repeat, duties);
+  } catch {}
+  const current = runs[Math.min(selected, Math.max(0, runs.length - 1))],
+    selectedDuty = current
+      ? duties.findIndex(
+          (d) =>
+            d.serviceId === current.serviceId &&
+            d.reverse ===
+              (current.origin ===
+                s.services
+                  .find((r) => r.id === d.serviceId)
+                  ?.stations.at(-1)) &&
+            Math.abs(
+              (((current.start % repeat) + repeat) % repeat) - d.offset,
+            ) < 0.001,
+        )
+      : -1;
+  const a = duties.findIndex((d) => d.serviceId === rid && !d.reverse),
+    b = duties.findIndex((d) => d.serviceId === rid && d.reverse);
+  const timeField = (index: number, label: string) =>
+    index >= 0 ? (
+      <label>
+        {label}
+        <input
+          type="time"
+          aria-label={label}
+          value={clock(duties[index]!.offset)}
+          onChange={(e) => {
+            if (e.target.value)
+              update(index, {
+                offset:
+                  Math.floor(duties[index]!.offset / 1440) * 1440 +
+                  minutes(e.target.value),
+              });
+          }}
+        />
+        {repeat > 1440 && (
+          <select
+            aria-label={`Hari ${label}`}
+            value={Math.floor(duties[index]!.offset / 1440)}
+            onChange={(e) =>
+              update(index, {
+                offset:
+                  Number(e.target.value) * 1440 +
+                  (duties[index]!.offset % 1440),
+              })
+            }
+          >
+            {Array.from({ length: repeat / 1440 }, (_, i) => (
+              <option key={i} value={i}>
+                Hari pola {i + 1}
+              </option>
+            ))}
+          </select>
+        )}
+      </label>
+    ) : null;
+  const ready =
+    train && current
+      ? coreReadiness(
+          s,
+          train,
+          s.services.find((r) => r.id === current.serviceId)!,
+          current.origin ===
+            s.services.find((r) => r.id === current.serviceId)!.stations.at(-1),
+        )
+      : [];
+  const save = () => {
+    if (!train || !duties.length) return;
+    const ok =
+      mode === "once"
+        ? act(
+            {
+              type: "schedule",
+              trainsetId: tid,
+              serviceId: duties[0]!.serviceId,
+              reverse: duties[0]!.reverse,
+              cycle: 1440,
+              offset: duties[0]!.offset % 1440,
+              roundTrip: false,
+              replace: true,
+              stationRefuel: refuel,
+            },
+            "Jadwal sekali jalan tersimpan. Pantau keberangkatan di sidebar.",
+          )
+        : act(
+            {
+              type: "diagram",
+              trainsetId: tid,
+              cycle: repeat,
+              duties,
+              replace: true,
+              stationRefuel: refuel,
+            },
+            "Jadwal tersimpan dan aktif. Lihat tab Rekap harian atau pantau sidebar.",
+          );
+    if (ok) {
+      setDirty(false);
+      setError("");
+    }
+  };
+  return (
+    <div className="schedule-workspace">
+      <ResponsiveColumns>
+        <Card title="1 · Kereta & jam berangkat">
+          <div className="two-column">
+            <label>
+              Trainset
+              <select
+                aria-label="Trainset jadwal"
+                value={tid}
+                onChange={(e) => {
+                  if (dirty) {
+                    setError(
+                      "Simpan atau batalkan rancangan sebelum berganti kereta.",
+                    );
+                    return;
+                  }
+                  setTid(e.target.value);
+                  load(e.target.value);
+                }}
+              >
+                <option value="">Pilih trainset</option>
+                {s.trainsets.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} · {stationName(t.location)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Relasi
+              <select
+                aria-label="Relasi jadwal"
+                value={rid}
+                onChange={(e) => {
+                  setRid(e.target.value);
+                  change(make(tid, e.target.value));
+                  setSelected(0);
+                  setMode("pp");
+                }}
+              >
+                <option value="">Buat relasi di tab Relasi</option>
+                {s.services.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="two-column">
+            <label>
+              Pengulangan
+              <select
+                disabled={mode === "once"}
+                aria-label="Ulangi jadwal"
+                value={repeat}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  setRepeat(n);
+                  change(make(tid, rid, n));
+                }}
+              >
+                <option value={1440}>Setiap hari</option>
+                <option value={2880}>Setiap 2 hari</option>
+                <option value={4320}>Setiap 3 hari</option>
+              </select>
+            </label>
+            <label>
+              Perjalanan
+              <select
+                value={mode}
+                onChange={(e) => {
+                  setMode(e.target.value);
+                  if (e.target.value === "once") setRepeat(1440);
+                  change(
+                    e.target.value === "once"
+                      ? make(tid, rid).slice(0, 1)
+                      : make(tid, rid),
+                  );
+                }}
+              >
+                <option value="pp">Pergi–pulang berulang</option>
+                <option value="once">Sekali jalan</option>
+              </select>
+            </label>
+          </div>
+          <div className="two-column">
+            {timeField(
+              a,
+              relation
+                ? `A → B · ${stationName(relation.stations[0]!)}`
+                : "Berangkat A → B",
+            )}
+            {timeField(
+              b,
+              relation
+                ? `B → A · ${stationName(relation.stations.at(-1)!)}`
+                : "Berangkat B → A",
+            )}
+          </div>
+          <p className="muted">
+            Relasi berlaku dua arah. Jeda terminal minimal 60 menit. Tanggal
+            rekap menandai perjalanan lintas tengah malam.
+          </p>
+          {mode !== "once" && (
+            <button
+              disabled={!train || !relation}
+              onClick={() => {
+                try {
+                  change(
+                    coreAutomaticRoundTrips(
+                      s,
+                      tid,
+                      rid,
+                      train!.location === relation!.stations.at(-1),
+                      duties.find(
+                        (d) =>
+                          d.serviceId === rid &&
+                          d.reverse ===
+                            (train!.location === relation!.stations.at(-1)),
+                      )?.offset ?? 480,
+                      repeat,
+                    ),
+                  );
+                  setSelected(0);
+                } catch (e) {
+                  setError((e as Error).message);
+                }
+              }}
+            >
+              Isi otomatis sebanyak mungkin PP
+            </button>
+          )}
+          {mode !== "once" && (
+            <details className="schedule-advanced">
+              <summary>Lanjutan · gunakan beberapa relasi</summary>
+              <label>
+                Relasi berikut
+                <select
+                  value={nextRelation}
+                  onChange={(e) => setNextRelation(e.target.value)}
+                >
+                  {s.services.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                onClick={() => {
+                  try {
+                    const last = runs.at(-1),
+                      r = s.services.find((r) => r.id === nextRelation);
+                    if (
+                      !last ||
+                      !r ||
+                      ![r.stations[0], r.stations.at(-1)].includes(
+                        last.destination,
+                      )
+                    )
+                      throw new Error(
+                        "Relasi berikut harus dimulai dari stasiun tujuan perjalanan terakhir.",
+                      );
+                    change([
+                      ...duties,
+                      ...coreFixedRoundTrip(
+                        s,
+                        tid,
+                        r.id,
+                        last.destination === r.stations.at(-1),
+                        Math.ceil(last.end + 60) % repeat,
+                        repeat,
+                      ),
+                    ]);
+                  } catch (e) {
+                    setError((e as Error).message);
+                  }
+                }}
+              >
+                Tambahkan PP lanjutan
+              </button>
+              <p className="muted">
+                Satu trainset dapat melayani beberapa relasi. Perjalanan berikut
+                harus tersambung secara lokasi dan memiliki jeda yang cukup.
+              </p>
+            </details>
+          )}
+          <p>
+            {duties.length} keberangkatan / {repeat / 1440} hari ·{" "}
+            {mode === "once"
+              ? "satu kali"
+              : `${Math.floor(duties.length / 2)} PP`}
+            .
+          </p>
+          <label className="stop-choice">
+            <input
+              type="checkbox"
+              checked={refuel}
+              onChange={(e) => {
+                setRefuel(e.target.checked);
+                setDirty(true);
+              }}
+            />
+            Beli fuel otomatis saat perlu di fasilitas stasiun
+          </label>
+          <small className="muted">
+            Stok depo dipakai dahulu; pemasok hanya di stasiun besar, dibayar
+            dengan kas.
+          </small>
+        </Card>
+        <Card title="2 · Timetable & pemberhentian">
+          <PagedList
+            size={3}
+            items={runs}
+            render={(run, index) => (
+              <button
+                className={`schedule-block ${selected === index ? "selected" : ""}`}
+                key={`${run.serviceId}:${run.start}`}
+                onClick={() => setSelected(index)}
+              >
+                <b>
+                  {clock(run.start)} → {clock(run.end)}
+                </b>
+                <span>
+                  {stationName(run.origin)} → {stationName(run.destination)}
+                </span>
+                <small>
+                  {Math.ceil(run.end - run.start)} menit · perkiraan kontribusi{" "}
+                  {compact(run.revenue - run.cost)}
+                </small>
+              </button>
+            )}
+          />
+          {current && selectedDuty >= 0 && (
+            <div className="trip-adjustment">
+              {timeField(selectedDuty, "Ubah jam perjalanan terpilih")}
+              <label>
+                Relasi perjalanan
+                <select
+                  value={duties[selectedDuty]!.serviceId}
+                  onChange={(e) =>
+                    update(selectedDuty, { serviceId: e.target.value })
+                  }
+                >
+                  {s.services.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+          {current && (
+            <CompactStopSheet
+              key={`${current.serviceId}:${current.start}`}
+              run={current}
+            />
+          )}
+        </Card>
+      </ResponsiveColumns>
+      <div className="schedule-save">
+        <div>
+          <b>
+            {dirty
+              ? "Rancangan belum disimpan"
+              : s.plans.some((p) => p.active && p.trainsetId === tid)
+                ? "Jadwal tersimpan tidak berubah"
+                : "Belum ada jadwal aktif · simpan rancangan ini"}
+          </b>
+          <small>
+            {error ||
+              (mode !== "once" ? preview.issues[0] : "") ||
+              (busy
+                ? "Kereta sedang berjalan/tertahan. Selesaikan atau pulihkan perjalanan sebelum mengganti jadwal."
+                : ready[0] || "Tinjau rekap, lalu tekan Simpan & aktifkan.")}
+          </small>
+        </div>
+        <button onClick={() => load(tid)}>Batalkan perubahan</button>
+        <button
+          className="primary"
+          disabled={
+            !train ||
+            !relation ||
+            busy ||
+            !duties.length ||
+            (mode !== "once" && preview.issues.length > 0)
+          }
+          onClick={save}
+        >
+          Simpan & aktifkan jadwal
+        </button>
+      </div>
     </div>
   );
 }

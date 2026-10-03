@@ -16,4 +16,5 @@ export * from './catalog/company-onboarding.js';
 export * from "./catalog/intermediate-stations.js";
 export * from "./catalog/station-demand.js";
 export * from "./catalog/east-java.js";
+export * from "./catalog/station-class.js";
 //# sourceMappingURL=index.d.ts.map

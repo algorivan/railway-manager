@@ -34,6 +34,7 @@ export const actionMessages: Record<CoreAction["type"], string> = {
   resume: "Dinas dilanjutkan.",
   stop: "Permintaan berhenti dicatat untuk stasiun aman berikutnya.",
   recall: "Permintaan perjalanan pulang dicatat.",
+  cargoContract: "Kontrak kargo diterima. Dana investasi tercatat terpisah dari pendapatan operasi.",
   fuel: "Fuel dibeli ke dipo. Isi tangki dari detail trainset.",
   recruitAuto:
     "SDM otomatis direkrut dan ditugaskan ke seluruh trainset yang membutuhkan kru.",

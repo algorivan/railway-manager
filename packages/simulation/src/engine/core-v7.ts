@@ -8,6 +8,9 @@ import {
 import { WorkloadCalculator } from "@railway/workforce";
 import {
   CORE_BALANCE as B,
+  CORE_ECONOMY_VERSION,
+  CORE_REFUEL_STATION_CODES,
+  CORE_CARGO_OFFERS,
   stationPurposeTimeFactor,
   CORE_PRODUCTS,
   CORE_DEPOT_CITIES,
@@ -51,6 +54,7 @@ export interface CoreTrainset {
   readyAt: number;
   parked: boolean;
   crew: boolean;
+  stationRefuel?: boolean;
 }
 export interface CoreService {
   id: string;
@@ -81,14 +85,27 @@ export interface CoreBooking {
   count: number;
   fare: number;
 }
+export interface CoreCargoContract {
+  id: string;
+  offerId: "oil" | "mineral" | "logistics";
+  serviceId: string;
+  acceptedAt: number;
+  deadline: number;
+  delivered: number;
+  target: number;
+  investment: number;
+  status: "active" | "completed" | "expired";
+}
 export interface CoreRun {
   id: string;
   planId: string;
+  cargoContractId?: string;
+  cargoTons?: number;
   trainsetId: string;
   serviceId: string;
   name: string;
   unitIds: string[];
-  status: "running" | "held" | "stopped" | "completed";
+  status: "running" | "held" | "stopped" | "completed" | "cancelled";
   reason: string;
   origin: string;
   destination: string;
@@ -124,6 +141,7 @@ export interface CoreRun {
 }
 export interface CoreState {
   version: 7;
+  economyVersion?: number;
   companyStarted?: boolean;
   progression?: { xp: number; claimed: OnboardingMissionId[] };
   minute: number;
@@ -170,6 +188,7 @@ export interface CoreState {
     lift: number;
     scope?: "hub" | "corridor" | "regional";
   }[];
+  cargoContracts?: CoreCargoContract[];
   nextOverhead: number;
 }
 const classes: CoreClass[] = ["EC", "EX", "LX"];
@@ -215,6 +234,7 @@ export function createCoreState(
     coreProduct("generator").price;
   return {
     version: 7,
+    economyVersion: CORE_ECONOMY_VERSION,
     minute: 420,
     anchorMs: now,
     mode: "Casual",
@@ -293,7 +313,9 @@ export function coreMissionStatus(s: CoreState) {
       case "schedule":
         return s.plans.some((p) => p.active);
       case "run":
-        return s.runs.some((r) => r.status === "completed" && !r.recalling);
+        return s.runs.some(
+          (r) => r.status === "completed" && !r.recalling && r.passengerKm > 0,
+        );
     }
   };
   return CORE_ONBOARDING_MISSIONS.map((mission) => ({
@@ -379,7 +401,8 @@ export function coreFormation(s: CoreState, t: CoreTrainset) {
     products,
     seats,
     length: products.reduce((a, p) => a + p.length, 0),
-    weight: products.reduce((a, p) => a + p.weight, 0),
+    weight: products.reduce((a, p) => a + p.weight + (p.cargoTons ?? 0), 0),
+    cargoTons: products.reduce((a, p) => a + (p.cargoTons ?? 0), 0),
     speed: Math.min(...products.map((p) => p.speed)),
     power: products.reduce((a, p) => a + p.powerKw, 0),
     capacity: seats.EC + seats.EX + seats.LX,
@@ -390,6 +413,7 @@ function legsFor(
   t: CoreTrainset,
   r: CoreService,
   reverse: boolean,
+  loadedCargo = !reverse,
 ) {
   const f = coreFormation(s, t),
     stationIds = reverse ? [...r.stations].reverse() : r.stations;
@@ -413,7 +437,10 @@ function legsFor(
       };
     },
   );
-  const motion = buildTrainMotion(sections, f.weight);
+  const motion = buildTrainMotion(
+    sections,
+    f.weight - (loadedCargo ? 0 : f.cargoTons),
+  );
   return sections.map((section, i) => ({
     ...section,
     motion: motion[i]!,
@@ -455,6 +482,34 @@ export function fuelQuote(now: number) {
   return { bucket, price, expires: (bucket + 1) * 1_800_000 };
 }
 function book(s: CoreState, r: CoreService, run: CoreRun, commit: boolean) {
+  const contract = s.cargoContracts?.find(
+    (c) => c.serviceId === r.id && c.status === "active",
+  );
+  if (contract) {
+    const f = coreFormation(
+      s,
+      s.trainsets.find((t) => t.id === run.trainsetId)!,
+    );
+    const offer = CORE_CARGO_OFFERS.find((o) => o.id === contract.offerId)!;
+    if (
+      !f.capacity &&
+      f.cargoTons >= 80 &&
+      f.products
+        .filter((p) => p.kind === "cargo")
+        .every((p) => p.cargoType === contract.offerId) &&
+      run.origin === r.stations[0] &&
+      run.start <= contract.deadline
+    ) {
+      run.cargoContractId = contract.id;
+      run.cargoTons = f.cargoTons;
+      run.revenue = Math.round(
+        f.cargoTons *
+          run.legs.reduce((sum, l) => sum + l.km, 0) *
+          offer.paymentPerTonKm,
+      );
+    }
+    return;
+  }
   const loads = run.legs.map(() => ({ EC: 0, EX: 0, LX: 0 }));
   const stopIds = [run.origin, ...run.legs.map((x) => x.to)];
   for (let a = 0; a < stopIds.length - 1; a++)
@@ -483,8 +538,10 @@ function book(s: CoreState, r: CoreService, run: CoreRun, commit: boolean) {
               0,
             );
         const key = `${stopIds[a]}:${stopIds[b]}:${cls}:${Math.floor(departure / 120)}`;
-        const time = (stationPurposeTimeFactor(origin.demandProfile, departure)
-          + stationPurposeTimeFactor(dest.demandProfile, departure)) / 2;
+        const time =
+          (stationPurposeTimeFactor(origin.demandProfile, departure) +
+            stationPurposeTimeFactor(dest.demandProfile, departure)) /
+          2;
         const lift = Math.max(
           0,
           ...s.campaigns
@@ -552,7 +609,10 @@ export function forecastCore(
       legs.slice(0, -1).filter((l) => l.commercialStop !== false).length *
         B.dwellMinutes;
   const liters = f.products.reduce((v, p) => v + p.litersPerKm, 0) * distance;
-  const tac = distance * (B.tacBase + (B.tacWeightSurcharge * f.weight) / 100);
+  const tac =
+    distance *
+    (B.tacBase +
+      (B.tacWeightSurcharge * (f.weight - (reverse ? f.cargoTons : 0))) / 100);
   const run: CoreRun = {
     id: "forecast",
     planId: "",
@@ -602,7 +662,7 @@ export function coreCrewNeeds(s: CoreState, t: CoreTrainset) {
         .length,
       hasDiningCar: f.products.some((p) => p.kind === "dining"),
       hasLuxuryCarriage: f.products.some((p) => p.serviceClass === "LX"),
-      isFreightOnly: false,
+      isFreightOnly: f.cargoTons > 0 && f.capacity === 0,
       consistWeightTons: f.weight,
     }).roster;
   });
@@ -623,6 +683,7 @@ export function coreReadiness(
   t: CoreTrainset,
   r: CoreService,
   reverse = false,
+  occurrenceId?: string,
 ): string[] {
   const f = coreFormation(s, t),
     legs = legsFor(s, t, r, reverse),
@@ -638,7 +699,40 @@ export function coreReadiness(
   if (!t.crew) reasons.push("Kontrak kru belum diaktifkan.");
   if (f.products.filter((p) => p.kind === "loco").length !== 1)
     reasons.push("Satu lokomotif diperlukan.");
-  if (!f.capacity) reasons.push("Rangkaian belum memiliki kursi penumpang.");
+  const cargo =
+    s.cargoContracts?.find(
+      (c) => c.serviceId === r.id && c.status === "active",
+    ) ??
+    [...(s.cargoContracts ?? [])].reverse().find((c) => c.serviceId === r.id);
+  if (cargo) {
+    const wagons = f.products.filter((p) => p.kind === "cargo");
+    if (
+      f.capacity ||
+      !wagons.length ||
+      wagons.some((p) => p.cargoType !== cargo.offerId) ||
+      wagons.reduce((v, p) => v + (p.cargoTons ?? 0), 0) < 80
+    )
+      reasons.push(
+        "Kontrak membutuhkan minimal 80 ton gerbong sesuai jenis muatan, tanpa kereta penumpang.",
+      );
+    if (!reverse && (s.minute > cargo.deadline || cargo.status !== "active"))
+      reasons.push(
+        "Kontrak tidak menerima pengiriman baru; perjalanan balik kosong tetap diperbolehkan.",
+      );
+    if (
+      !reverse &&
+      cargo.delivered +
+        s.runs.filter(
+          (run) =>
+            run.id !== occurrenceId &&
+            run.cargoContractId === cargo.id &&
+            ["running", "held", "stopped"].includes(run.status),
+        ).length >=
+        cargo.target
+    )
+      reasons.push("Seluruh slot pengiriman kontrak sudah terisi.");
+  } else if (!f.capacity)
+    reasons.push("Rangkaian penumpang atau kontrak kargo aktif diperlukan.");
   if (f.power < 0)
     reasons.push("Daya listrik rangkaian tidak cukup. Tambahkan pembangkit.");
   if (
@@ -683,14 +777,22 @@ export function coreReadiness(
       );
     refill += Math.max(0, need - u.fuel);
   }
-  if (refill > (depot?.stock ?? 0) + 0.001)
+  const vendor = t.stationRefuel === true && coreStationCanRefuel(t.location);
+  if (!vendor && refill > (depot?.stock ?? 0) + 0.001)
     reasons.push(
       `Fuel tidak cukup: perlu tambahan ${Math.ceil(refill - (depot?.stock ?? 0))} L di ${stationName(t.location)}.`,
     );
   const preview = forecastCore(s, t.id, r.id, reverse);
   const cashCost =
     preview.cost - preview.fuelLiters * fuelQuote(s.anchorMs).price;
-  if (s.cash < cashCost)
+  if (
+    s.cash <
+    cashCost +
+      (vendor
+        ? Math.max(0, refill - (depot?.stock ?? 0)) *
+          fuelQuote(s.anchorMs).price
+        : 0)
+  )
     reasons.push("Cadangan kas untuk TAC, kru dan maintenance tidak cukup.");
   return [...new Set(reasons)];
 }
@@ -698,7 +800,7 @@ function startRun(s: CoreState, run: CoreRun) {
   const t = s.trainsets.find((x) => x.id === run.trainsetId)!,
     r = s.services.find((x) => x.id === run.serviceId)!;
   const reverse = run.origin !== r.stations[0];
-  const reasons = coreReadiness(s, t, r, reverse);
+  const reasons = coreReadiness(s, t, r, reverse, run.id);
   if (reasons.length) {
     run.status = "held";
     run.reason = reasons.join(" ");
@@ -722,11 +824,24 @@ function startRun(s: CoreState, run: CoreRun) {
     const p = coreProduct(u.productId),
       consumed = run.legs.reduce((v, l) => v + l.km, 0) * p.litersPerKm;
     const refill = Math.max(0, consumed * (1 + B.fuelReserve) - u.fuel);
-    if (refill && depot) {
+    if (refill) {
+      const fromStock = Math.min(refill, depot?.stock ?? 0),
+        purchase = refill - fromStock;
       const oldValue = u.fuel * u.fuelCost;
+      if (purchase > 0)
+        accounting(
+          s,
+          `${run.id}:refuel:${u.id}`,
+          "Pengisian pemasok hub",
+          -purchase * fuelQuote(s.anchorMs).price,
+        );
       u.fuel += refill;
-      u.fuelCost = (oldValue + refill * depot.cost) / u.fuel;
-      depot.stock -= refill;
+      u.fuelCost =
+        (oldValue +
+          fromStock * (depot?.cost ?? 0) +
+          purchase * fuelQuote(s.anchorMs).price) /
+        u.fuel;
+      if (depot) depot.stock -= fromStock;
     }
     fuelCost += consumed * u.fuelCost;
   }
@@ -745,7 +860,11 @@ function restartMotion(s: CoreState, run: CoreRun) {
   const tail = run.legs.slice(run.leg);
   if (!tail[0]?.motion || tail[0].motion.entryKmh === 0) return;
   const t = s.trainsets.find((t) => t.id === run.trainsetId)!;
-  const motions = buildTrainMotion(tail, coreFormation(s, t).weight);
+  const f = coreFormation(s, t);
+  const motions = buildTrainMotion(
+    tail,
+    f.weight - f.cargoTons + (run.recalling ? 0 : (run.cargoTons ?? 0)),
+  );
   tail.forEach((leg, index) => {
     const minutes = motionMinutes(motions[index]!);
     run.end += minutes - leg.minutes;
@@ -780,7 +899,52 @@ function conflictDelay(s: CoreState, run: CoreRun): number {
   }
   return Math.max(0, until - s.minute);
 }
+function finishCargoPlans(s: CoreState, serviceId: string) {
+  const relation = s.services.find((r) => r.id === serviceId)!;
+  for (const run of s.runs) {
+    if (
+      run.serviceId === serviceId &&
+      run.status === "held" &&
+      run.origin === relation.stations[0]
+    ) {
+      // Held departures have never paid dispatch costs or consumed fuel.
+      run.status = "cancelled";
+      run.reason =
+        "Kontrak berakhir sebelum keberangkatan. Trainset dapat dijadwalkan ulang.";
+      run.revenue = 0;
+      run.cost = 0;
+      run.fuelLiters = 0;
+      run.end = s.minute;
+      run.nextEvent = Infinity;
+    }
+  }
+  const kept = new Set<string>();
+  for (const p of s.plans
+    .filter((p) => p.active && p.serviceId === serviceId)
+    .sort((a, b) => a.nextAt - b.nextAt)) {
+    const train = s.trainsets.find((t) => t.id === p.trainsetId)!;
+    const relation = s.services.find((r) => r.id === serviceId)!;
+    const outbound = s.runs.some(
+      (r) =>
+        r.trainsetId === train.id &&
+        r.serviceId === serviceId &&
+        ["running", "held", "stopped"].includes(r.status) &&
+        r.destination === relation.stations.at(-1),
+    );
+    if (
+      p.reverse &&
+      !kept.has(p.trainsetId) &&
+      (train.location === relation.stations.at(-1) || outbound)
+    ) {
+      p.once = true;
+      kept.add(p.trainsetId);
+    } else p.active = false;
+  }
+}
 function advanceOwned(s: CoreState, target: number) {
+  const originalMinute = s.minute,
+    originalAnchor = s.anchorMs,
+    rate = pace(s);
   let events = 0;
   while (true) {
     if (++events > 100_000)
@@ -789,6 +953,9 @@ function advanceOwned(s: CoreState, target: number) {
       );
     const next = Math.min(
       s.nextOverhead,
+      ...(s.cargoContracts ?? [])
+        .filter((c) => c.status === "active")
+        .map((c) => c.deadline + 0.000001),
       ...s.orders
         .filter((o) => !o.accepted && o.due > s.minute)
         .map((o) => o.due),
@@ -801,6 +968,7 @@ function advanceOwned(s: CoreState, target: number) {
     );
     if (next > target) break;
     s.minute = next;
+    s.anchorMs = originalAnchor + ((next - originalMinute) / rate) * 60000;
     for (const u of s.units)
       if (u.job && u.job.end <= next) {
         if (u.job.target) u.productId = u.job.target;
@@ -869,12 +1037,15 @@ function advanceOwned(s: CoreState, target: number) {
             ),
           },
           false,
+          false,
         );
         /* Legacy per-distance recall accounting is retained below. */
         const cashCost = back.reduce(
           (v, l) =>
             v +
-            l.km * (B.tacBase + (B.tacWeightSurcharge * f.weight) / 100) +
+            l.km *
+              (B.tacBase +
+                (B.tacWeightSurcharge * (f.weight - f.cargoTons)) / 100) +
             (l.minutes / 60) * B.crewPerHour +
             l.km * B.maintenancePerKm,
           0,
@@ -977,14 +1148,43 @@ function advanceOwned(s: CoreState, target: number) {
           (following && following.serviceId !== run.serviceId
             ? B.changeServiceMinutes
             : B.turnaroundMinutes);
+        const cargoDelivery = run.cargoContractId
+          ? s.cargoContracts?.find((c) => c.id === run.cargoContractId)
+          : undefined;
+        if (cargoDelivery && (run.recalling || next > cargoDelivery.deadline))
+          run.revenue = 0;
         accounting(
           s,
           `${run.id}:settlement`,
-          `${run.name} • tiket terlayani`,
+          `${run.name} • ${cargoDelivery ? "pengiriman kargo" : "tiket terlayani"}`,
           run.revenue,
           0,
-          run.revenue,
+          cargoDelivery ? 0 : run.revenue,
         );
+        if (
+          cargoDelivery &&
+          !run.recalling &&
+          next <= cargoDelivery.deadline &&
+          run.revenue > 0
+        ) {
+          cargoDelivery.delivered++;
+          if (
+            cargoDelivery.delivered >= cargoDelivery.target &&
+            cargoDelivery.status === "active"
+          ) {
+            cargoDelivery.status = "completed";
+            const offer = CORE_CARGO_OFFERS.find(
+              (o) => o.id === cargoDelivery.offerId,
+            )!;
+            accounting(
+              s,
+              `cargo-bonus:${cargoDelivery.id}`,
+              "Bonus kontrak kargo selesai",
+              offer.bonus,
+            );
+            finishCargoPlans(s, cargoDelivery.serviceId);
+          }
+        }
         s.reputation = Math.max(
           0,
           Math.min(
@@ -1009,6 +1209,20 @@ function advanceOwned(s: CoreState, target: number) {
         }
       }
     }
+    for (const c of s.cargoContracts ?? [])
+      if (c.status === "active" && c.deadline < next) {
+        c.status = "expired";
+        accounting(
+          s,
+          `cargo-penalty:${c.id}`,
+          "Penalti target kontrak tidak terpenuhi",
+          -Math.min(
+            s.cash,
+            Math.round(c.investment * 0.1 * (1 - c.delivered / c.target)),
+          ),
+        );
+        finishCargoPlans(s, c.serviceId);
+      }
     for (const p of s.plans.filter((p) => p.active && p.nextAt <= next)) {
       const at = p.nextAt;
       if (p.once) p.active = false;
@@ -1092,6 +1306,7 @@ export type CoreAction =
       roundTrip: boolean;
       reverse?: boolean;
       replace?: boolean;
+      stationRefuel?: boolean;
     }
   | {
       type: "diagram";
@@ -1099,12 +1314,18 @@ export type CoreAction =
       cycle: number;
       duties: { serviceId: string; reverse: boolean; offset: number }[];
       replace?: boolean;
+      stationRefuel?: boolean;
     }
   | { type: "disablePlan"; planId: string }
   | { type: "disableDiagram"; trainsetId: string }
   | { type: "resume"; runId: string }
   | { type: "stop"; runId: string }
   | { type: "recall"; runId: string }
+  | {
+      type: "cargoContract";
+      offerId: "oil" | "mineral" | "logistics";
+      serviceId: string;
+    }
   | { type: "fuel"; station: string; liters: number; bucket: number }
   | { type: "fill"; trainsetId: string }
   | { type: "crew"; trainsetId: string }
@@ -1277,11 +1498,12 @@ export function applyCoreAction(
       const f = coreFormation(s, t);
       if (
         f.products.filter((p) => p.kind === "loco").length !== 1 ||
-        !f.capacity ||
+        (!f.capacity && !f.cargoTons) ||
+        (f.capacity > 0 && f.cargoTons > 0) ||
         f.power < 0
       )
         throw new Error(
-          "Pilih satu loko, kereta penumpang dan sumber listrik yang cukup.",
+          "Pilih satu loko dan rangkaian penumpang dengan sumber listrik cukup, atau gerbong kargo tanpa kereta penumpang.",
         );
       if (existing) Object.assign(existing, t);
       else s.trainsets.push(t);
@@ -1336,7 +1558,9 @@ export function applyCoreAction(
         );
       s.services.push({
         id,
-        name: action.name?.trim() || coreServiceName(action.origin, action.destination),
+        name:
+          action.name?.trim() ||
+          coreServiceName(action.origin, action.destination),
         ...path,
         stops: [...new Set(stops)],
         category: action.category,
@@ -1373,32 +1597,67 @@ export function applyCoreAction(
       const reverse = action.reverse ?? false;
       const outbound = forecastCore(s, t.id, r.id, reverse);
       if (t.location !== outbound.origin)
-        throw new Error(`Trainset berada di ${stationName(t.location)}; pilih arah dari stasiun tersebut.`);
+        throw new Error(
+          `Trainset berada di ${stationName(t.location)}; pilih arah dari stasiun tersebut.`,
+        );
       const duration = outbound.end - outbound.start;
       const inbound = forecastCore(s, t.id, r.id, !reverse);
-      if (action.roundTrip && duration + inbound.end - inbound.start + B.turnaroundMinutes * 2 > action.cycle)
+      if (
+        action.roundTrip &&
+        duration + inbound.end - inbound.start + B.turnaroundMinutes * 2 >
+          action.cycle
+      )
         throw new Error("PP dan turnaround tidak muat dalam siklus.");
-      if (!action.replace && s.plans.some((p) => p.trainsetId === t.id && p.active))
+      if (
+        !action.replace &&
+        s.plans.some((p) => p.trainsetId === t.id && p.active)
+      )
         throw new Error("Nonaktifkan diagram sebelumnya sebelum menggantinya.");
-      if (action.replace && s.runs.some((r) => r.trainsetId === t.id && ["running", "held", "stopped"].includes(r.status)))
-        throw new Error("Selesaikan atau pulihkan perjalanan aktif sebelum mengubah jadwal.");
+      if (
+        action.replace &&
+        s.runs.some(
+          (r) =>
+            r.trainsetId === t.id &&
+            ["running", "held", "stopped"].includes(r.status),
+        )
+      )
+        throw new Error(
+          "Selesaikan atau pulihkan perjalanan aktif sebelum mengubah jadwal.",
+        );
       const base = Math.floor(s.minute / action.cycle) * action.cycle;
       let first = base + action.offset;
       if (first < s.minute) first += action.cycle;
       if (first < t.readyAt)
-        throw new Error(`Jeda persiapan belum selesai; keberangkatan paling awal menit ${Math.ceil(t.readyAt)}.`);
+        throw new Error(
+          `Jeda persiapan belum selesai; keberangkatan paling awal menit ${Math.ceil(t.readyAt)}.`,
+        );
       const p: CorePlan = {
-        id, trainsetId: t.id, serviceId: r.id, reverse,
-        cycle: action.cycle, offset: action.offset,
-        nextAt: first, firstAt: first, once: !action.roundTrip, active: true,
+        id,
+        trainsetId: t.id,
+        serviceId: r.id,
+        reverse,
+        cycle: action.cycle,
+        offset: action.offset,
+        nextAt: first,
+        firstAt: first,
+        once: !action.roundTrip,
+        active: true,
       };
-      if (action.replace) for (const old of s.plans) if (old.trainsetId === t.id) old.active = false;
+      if (action.replace)
+        for (const old of s.plans)
+          if (old.trainsetId === t.id) old.active = false;
+      if (action.stationRefuel !== undefined)
+        t.stationRefuel = action.stationRefuel;
       s.plans.push(p);
       if (action.roundTrip)
         s.plans.push({
-          ...p, id: `${id}:return`, reverse: !reverse,
-          offset: (action.offset + duration + B.turnaroundMinutes) % action.cycle,
-          nextAt: first + duration + B.turnaroundMinutes, firstAt: first + duration + B.turnaroundMinutes,
+          ...p,
+          id: `${id}:return`,
+          reverse: !reverse,
+          offset:
+            (action.offset + duration + B.turnaroundMinutes) % action.cycle,
+          nextAt: first + duration + B.turnaroundMinutes,
+          firstAt: first + duration + B.turnaroundMinutes,
         });
       break;
     }
@@ -1410,15 +1669,31 @@ export function applyCoreAction(
     case "diagram": {
       const t = train(action.trainsetId);
       idle(t);
-      if (!action.replace && s.plans.some((p) => p.trainsetId === t.id && p.active))
+      if (
+        !action.replace &&
+        s.plans.some((p) => p.trainsetId === t.id && p.active)
+      )
         throw new Error("Nonaktifkan diagram sebelumnya dahulu.");
-      if (action.replace && s.runs.some((r) => r.trainsetId === t.id && ["running", "held", "stopped"].includes(r.status)))
-        throw new Error("Selesaikan atau pulihkan perjalanan aktif sebelum mengubah jadwal.");
+      if (
+        action.replace &&
+        s.runs.some(
+          (r) =>
+            r.trainsetId === t.id &&
+            ["running", "held", "stopped"].includes(r.status),
+        )
+      )
+        throw new Error(
+          "Selesaikan atau pulihkan perjalanan aktif sebelum mengubah jadwal.",
+        );
       const preview = previewCoreDiagram(s, t.id, action.cycle, action.duties);
       if (preview.issues.length) throw new Error(preview.issues[0]);
       const duties = preview.duties;
       const anchor = coreDiagramAnchor(s, t.id, action.cycle, duties);
-      if (action.replace) for (const old of s.plans) if (old.trainsetId === t.id) old.active = false;
+      if (action.replace)
+        for (const old of s.plans)
+          if (old.trainsetId === t.id) old.active = false;
+      if (action.stationRefuel !== undefined)
+        t.stationRefuel = action.stationRefuel;
       duties.forEach((d, i) =>
         s.plans.push({
           id: `${id}:${i}`,
@@ -1427,8 +1702,14 @@ export function applyCoreAction(
           reverse: d.reverse,
           cycle: action.cycle,
           offset: d.offset,
-          nextAt: anchor.time + ((d.offset - duties[anchor.index]!.offset + action.cycle) % action.cycle),
-          firstAt: anchor.time + ((d.offset - duties[anchor.index]!.offset + action.cycle) % action.cycle),
+          nextAt:
+            anchor.time +
+            ((d.offset - duties[anchor.index]!.offset + action.cycle) %
+              action.cycle),
+          firstAt:
+            anchor.time +
+            ((d.offset - duties[anchor.index]!.offset + action.cycle) %
+              action.cycle),
           active: true,
         }),
       );
@@ -1503,6 +1784,55 @@ export function applyCoreAction(
         "Recall diminta: kembali melalui lintas setelah stasiun berikutnya. Tiket yang belum dilayani dibatalkan.";
       break;
     }
+    case "cargoContract": {
+      const offer = CORE_CARGO_OFFERS.find((o) => o.id === action.offerId),
+        relation = s.services.find((r) => r.id === action.serviceId);
+      if (!offer || !relation)
+        throw new Error("Pilih penawaran dan relasi kargo.");
+      if (
+        s.cargoContracts?.some(
+          (c) => c.status === "active" || c.offerId === offer.id,
+        )
+      )
+        throw new Error(
+          "Selesaikan kontrak aktif; tiap penawaran investasi hanya dapat diambil sekali.",
+        );
+      if (
+        s.plans.some((p) => p.active && p.serviceId === relation.id) ||
+        s.runs.some(
+          (r) =>
+            r.serviceId === relation.id &&
+            ["running", "held", "stopped"].includes(r.status),
+        )
+      )
+        throw new Error("Gunakan relasi khusus kargo tanpa jadwal aktif.");
+      const km = relation.segments.reduce(
+        (v, id) => v + TRACKS.find((t) => t.id === id)!.distanceKm,
+        0,
+      );
+      if (km < 25) throw new Error("Kontrak membutuhkan lintas minimal 25 km.");
+      findCorePath(relation.stations[0]!, relation.stations.at(-1)!, s.access);
+      const contract: CoreCargoContract = {
+        id,
+        offerId: offer.id,
+        serviceId: relation.id,
+        acceptedAt: s.minute,
+        deadline: s.minute + offer.days * 1440,
+        delivered: 0,
+        target: offer.trips,
+        investment: offer.investment,
+        status: "active",
+      };
+      (s.cargoContracts ??= []).push(contract);
+      relation.stops = [relation.stations[0]!, relation.stations.at(-1)!];
+      accounting(
+        s,
+        `cargo-investment:${id}`,
+        `Investasi awal • ${offer.name}`,
+        offer.investment,
+      );
+      break;
+    }
     case "fuel": {
       const d = s.depots.find((x) => x.station === action.station),
         q = fuelQuote(now);
@@ -1536,19 +1866,31 @@ export function applyCoreAction(
           (v, u) => v + coreProduct(u.productId).tank - u.fuel,
           0,
         );
-      if (!d || d.stock < need)
+      const available = Math.min(need, d?.stock ?? 0),
+        purchase = need - available;
+      if (purchase > 0 && !coreStationCanRefuel(t.location))
         throw new Error(
-          `Perlu ${Math.ceil(need)} L di dipo ini untuk tangki penuh.`,
+          `Perlu ${Math.ceil(need)} L di depo, atau gunakan hub pengisian game.`,
         );
+      const price = fuelQuote(now).price;
+      if (purchase > 0)
+        accounting(s, id, "Isi tangki dari pemasok hub", -purchase * price);
+      let stock = available;
       for (const u of f.units) {
         const p = coreProduct(u.productId),
           amount = p.tank - u.fuel;
-        if (amount) {
-          u.fuelCost = (u.fuel * u.fuelCost + amount * d.cost) / p.tank;
+        if (amount > 0) {
+          const supplied = Math.min(amount, stock);
+          stock -= supplied;
+          u.fuelCost =
+            (u.fuel * u.fuelCost +
+              supplied * (d?.cost ?? 0) +
+              (amount - supplied) * price) /
+            p.tank;
           u.fuel = p.tank;
-          d.stock -= amount;
         }
       }
+      if (d) d.stock -= available;
       break;
     }
     case "recruitAuto": {
@@ -1610,7 +1952,7 @@ export function applyCoreAction(
           .map((other) => other.job!.end),
       );
       u.job = {
-        end: bayFree + (action.retrofit ? 4320 : p.kind === "loco" ? 120 : 60),
+        end: bayFree + (action.retrofit ? 90 : p.kind === "loco" ? 30 : 15),
         kind: action.retrofit ? "retrofit" : "P1",
         ...(action.retrofit ? { target: "ec-ng-retrofit" } : {}),
       };
@@ -1795,11 +2137,13 @@ const legSchema = z.object({
 const runSchema = z.object({
   id: z.string(),
   planId: z.string(),
+  cargoContractId: z.string().optional(),
+  cargoTons: finite.nonnegative().optional(),
   trainsetId: z.string(),
   serviceId: z.string(),
   name: z.string(),
   unitIds: z.array(z.string()),
-  status: z.enum(["running", "held", "stopped", "completed"]),
+  status: z.enum(["running", "held", "stopped", "completed", "cancelled"]),
   reason: z.string(),
   origin: z.string(),
   destination: z.string(),
@@ -1837,6 +2181,7 @@ const runSchema = z.object({
 });
 const saveSchema = z.object({
   version: z.literal(7),
+  economyVersion: finite.int().positive().optional(),
   companyStarted: z.boolean().optional(),
   progression: z
     .object({
@@ -1872,6 +2217,7 @@ const saveSchema = z.object({
       readyAt: finite,
       parked: z.boolean(),
       crew: z.boolean(),
+      stationRefuel: z.boolean().optional(),
     }),
   ),
   services: z.array(
@@ -1938,6 +2284,21 @@ const saveSchema = z.object({
   actions: z.array(z.string()),
   demandUsed: z.record(finite.nonnegative()),
   access: z.array(z.string()),
+  cargoContracts: z
+    .array(
+      z.object({
+        id: z.string(),
+        offerId: z.enum(["oil", "mineral", "logistics"]),
+        serviceId: z.string(),
+        acceptedAt: finite.nonnegative(),
+        deadline: finite.nonnegative(),
+        delivered: finite.int().nonnegative(),
+        target: finite.int().positive(),
+        investment: finite.nonnegative(),
+        status: z.enum(["active", "completed", "expired"]),
+      }),
+    )
+    .optional(),
   campaigns: z.array(
     z.object({
       station: z.string(),
@@ -1993,6 +2354,7 @@ export function restoreCore(json: string): CoreState {
     s.runs,
     s.orders,
     s.ledger,
+    s.cargoContracts ?? [],
   ])
     if (new Set(collection.map((x) => x.id)).size !== collection.length)
       throw new Error("ID save tidak unik.");
@@ -2028,7 +2390,32 @@ export function restoreCore(json: string): CoreState {
       (p.nextAt < s.minute && p.active)
     )
       throw new Error("Diagram save tidak konsisten.");
+  for (const c of s.cargoContracts ?? []) {
+    const offer = CORE_CARGO_OFFERS.find((o) => o.id === c.offerId)!;
+    if (
+      !s.services.some((r) => r.id === c.serviceId) ||
+      c.target !== offer.trips ||
+      c.investment !== offer.investment ||
+      c.delivered > c.target ||
+      c.deadline !== c.acceptedAt + offer.days * 1440 ||
+      (c.status === "completed" && c.delivered !== c.target)
+    )
+      throw new Error("Kontrak kargo save tidak konsisten.");
+  }
+  if (
+    new Set((s.cargoContracts ?? []).map((c) => c.offerId)).size !==
+      (s.cargoContracts ?? []).length ||
+    (s.cargoContracts ?? []).filter((c) => c.status === "active").length > 1
+  )
+    throw new Error("Penawaran kontrak save tidak unik.");
   for (const r of s.runs) {
+    if (
+      r.cargoContractId &&
+      !s.cargoContracts?.some(
+        (c) => c.id === r.cargoContractId && c.serviceId === r.serviceId,
+      )
+    )
+      throw new Error("Pengiriman save tidak memiliki kontrak.");
     if (
       !s.trainsets.some((t) => t.id === r.trainsetId) ||
       !s.services.some((service) => service.id === r.serviceId) ||
@@ -2066,37 +2453,76 @@ export function previewCoreRoundTrip(
 
 /** Endpoint codes identify a reusable, bidirectional company relation. */
 export function coreServiceName(origin: string, destination: string): string {
-  const code = (id: string) => STATIONS.find((station) => station.id === id)?.code ?? id;
+  const code = (id: string) =>
+    STATIONS.find((station) => station.id === id)?.code ?? id;
   return `${code(origin)} – ${code(destination)}`;
 }
 
-export interface CoreDuty { serviceId: string; reverse: boolean; offset: number }
+export interface CoreDuty {
+  serviceId: string;
+  reverse: boolean;
+  offset: number;
+}
 /** Shared by the timetable and activation: forecast only, never mutates company state. */
-export function previewCoreDiagram(s: CoreState, trainsetId: string, cycle: number, input: CoreDuty[]) {
+export function previewCoreDiagram(
+  s: CoreState,
+  trainsetId: string,
+  cycle: number,
+  input: CoreDuty[],
+) {
   const duties = [...input].sort((a, b) => a.offset - b.offset);
-  const runs: CoreRun[] = [], issues: string[] = [];
+  const runs: CoreRun[] = [],
+    issues: string[] = [];
   const t = s.trainsets.find((t) => t.id === trainsetId);
-  if (!t) return { duties, runs, issues: ["Pilih trainset untuk menyusun pola."] };
-  if (![1440, 2880, 4320].includes(cycle) || duties.length < 2 || duties.length > 24)
-    issues.push("Tambahkan 2–24 perjalanan untuk jadwal berulang setiap 1, 2, atau 3 hari.");
+  if (!t)
+    return { duties, runs, issues: ["Pilih trainset untuk menyusun pola."] };
+  if (
+    ![1440, 2880, 4320].includes(cycle) ||
+    duties.length < 2 ||
+    duties.length > 24
+  )
+    issues.push(
+      "Tambahkan 2–24 perjalanan untuk jadwal berulang setiap 1, 2, atau 3 hari.",
+    );
   if (!duties.length) return { duties, runs, issues };
   for (const d of duties) {
     if (!Number.isFinite(d.offset) || d.offset < 0 || d.offset >= cycle)
-      return { duties, runs, issues: [...issues, "Jam perjalanan berada di luar periode jadwal."] };
-    try { runs.push(forecastCore(s, t.id, d.serviceId, d.reverse, d.offset)); }
-    catch (error) { return { duties, runs, issues: [...issues, (error as Error).message] }; }
+      return {
+        duties,
+        runs,
+        issues: [...issues, "Jam perjalanan berada di luar periode jadwal."],
+      };
+    try {
+      runs.push(forecastCore(s, t.id, d.serviceId, d.reverse, d.offset));
+    } catch (error) {
+      return { duties, runs, issues: [...issues, (error as Error).message] };
+    }
   }
   const anchor = coreDiagramAnchor(s, t.id, cycle, duties);
-  if (anchor.index < 0) issues.push("Awal jadwal tidak sesuai lokasi trainset.");
+  if (anchor.index < 0)
+    issues.push("Awal jadwal tidak sesuai lokasi trainset.");
   for (let i = 0; i < runs.length; i++) {
-    const run = runs[i]!, following = runs[(i + 1) % runs.length]!;
+    const run = runs[i]!,
+      following = runs[(i + 1) % runs.length]!;
     const turnaround = coreDutyTurnaround(run, following);
     if (run.destination !== following.origin)
-      issues.push(`Lokasi ${stationName(run.destination)} tidak sama dengan ${stationName(following.origin)}; tambahkan dinas penghubung.`);
-    if (run.serviceId !== following.serviceId && !s.depots.some((d) => d.station === run.destination))
-      issues.push("Pergantian relasi memerlukan fasilitas kontrak dipo/service.");
-    if (run.end + turnaround > following.start + (i === runs.length - 1 ? cycle : 0))
-      issues.push("Perjalanan bertumpuk atau jeda tidak cukup, termasuk keberangkatan pada pengulangan jadwal berikutnya.");
+      issues.push(
+        `Lokasi ${stationName(run.destination)} tidak sama dengan ${stationName(following.origin)}; tambahkan dinas penghubung.`,
+      );
+    if (
+      run.serviceId !== following.serviceId &&
+      !s.depots.some((d) => d.station === run.destination)
+    )
+      issues.push(
+        "Pergantian relasi memerlukan fasilitas kontrak dipo/service.",
+      );
+    if (
+      run.end + turnaround >
+      following.start + (i === runs.length - 1 ? cycle : 0)
+    )
+      issues.push(
+        "Perjalanan bertumpuk atau jeda tidak cukup, termasuk keberangkatan pada pengulangan jadwal berikutnya.",
+      );
   }
   if (anchor.index >= 0 && anchor.time < t.readyAt)
     issues.push("Dinas pertama dimulai sebelum jeda persiapan selesai.");
@@ -2104,23 +2530,46 @@ export function previewCoreDiagram(s: CoreState, trainsetId: string, cycle: numb
 }
 export function coreDutyTurnaround(run: CoreRun, following?: CoreRun): number {
   return following && run.serviceId !== following.serviceId
-    ? B.changeServiceMinutes : B.turnaroundMinutes;
+    ? B.changeServiceMinutes
+    : B.turnaroundMinutes;
 }
 
 /** Start the repeating loop at the next departure from the trainset's actual station, including overnight PP. */
-export function coreDiagramAnchor(s: CoreState, trainsetId: string, cycle: number, duties: CoreDuty[]) {
+export function coreDiagramAnchor(
+  s: CoreState,
+  trainsetId: string,
+  cycle: number,
+  duties: CoreDuty[],
+) {
   const t = s.trainsets.find((t) => t.id === trainsetId);
-  let index = -1, time = Infinity;
+  let index = -1,
+    time = Infinity;
   if (!t || ![1440, 2880, 4320].includes(cycle)) return { index, time };
   const base = Math.floor(s.minute / cycle) * cycle;
   duties.forEach((d, i) => {
     const relation = s.services.find((r) => r.id === d.serviceId);
-    if (!relation || !Number.isFinite(d.offset) || d.offset < 0 || d.offset >= cycle) return;
-    const origin = relation.stations[d.reverse ? relation.stations.length - 1 : 0];
+    if (
+      !relation ||
+      !Number.isFinite(d.offset) ||
+      d.offset < 0 ||
+      d.offset >= cycle
+    )
+      return;
+    const origin =
+      relation.stations[d.reverse ? relation.stations.length - 1 : 0];
     if (origin !== t.location) return;
     let departure = base + d.offset;
     if (departure < s.minute) departure += cycle;
-    if (departure < time) { index = i; time = departure; }
+    if (departure < time) {
+      index = i;
+      time = departure;
+    }
   });
   return { index, time };
+}
+
+export function coreStationCanRefuel(stationId: string) {
+  return CORE_REFUEL_STATION_CODES.has(
+    STATIONS.find((st) => st.id === stationId)?.code ?? "",
+  );
 }

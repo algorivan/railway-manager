@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Download, Upload } from "lucide-react";
 import { CORE_BALANCE as B } from "@railway/game-data";
 import {
   fuelQuote,
@@ -16,38 +15,39 @@ import {
   money,
   when,
   type Act,
+  type Screen,
 } from "./presentation";
+import { CompactWorkspace, PagedList, ResponsiveColumns } from "./Compact";
+import { CargoContracts } from "./CargoContracts";
 import { RunReport } from "./RunReport";
-
 export function Office({
   state: s,
   act,
   exportSave,
   importSave,
   notify,
+  go,
 }: {
   state: CoreState;
   act: Act;
   exportSave: () => void;
   importSave: (file: File) => void;
   notify: (message: string) => void;
+  go: (screen: Screen) => void;
 }) {
-  const [depotId, setDepotId] = useState(s.hub),
-    [liters, setLiters] = useState(1500);
-  const [quote, setQuote] = useState(() => fuelQuote(Date.now()));
-  const depot = s.depots.find((d) => d.station === depotId)!;
-  const staffing = s.trainsets.map((trainset) => ({
-    trainset,
-    needs: coreCrewNeeds(s, trainset),
-  }));
-  const totalStaff = staffing.reduce(
-    (total, row) => total + row.needs.totalCrew,
-    0,
-  );
-  const missingStaff = staffing
-    .filter((row) => !row.trainset.crew)
-    .reduce((total, row) => total + row.needs.totalCrew, 0);
-  const completed = s.runs.filter((r) => r.status === "completed");
+  const [depotId, setDepot] = useState(s.hub),
+    [liters, setLiters] = useState(14000),
+    [quote, setQuote] = useState(() => fuelQuote(Date.now()));
+  const depot = s.depots.find((d) => d.station === depotId) ?? s.depots[0]!,
+    staffing = s.trainsets.map((t) => ({
+      trainset: t,
+      needs: coreCrewNeeds(s, t),
+    })),
+    total = staffing.reduce((v, r) => v + r.needs.totalCrew, 0),
+    missing = staffing
+      .filter((r) => !r.trainset.crew)
+      .reduce((v, r) => v + r.needs.totalCrew, 0),
+    completed = s.runs.filter((r) => r.status === "completed");
   const daily = s.plans
     .filter(
       (p) =>
@@ -63,206 +63,222 @@ export function Office({
       0,
     );
   return (
-    <div className="panel-scroll">
-      <Card title="SDM & rekrut otomatis">
-        <p>
-          Rekrut tim kru sesuai formasi dan jadwal aktif. Tim ditugaskan
-          otomatis ke trainset yang belum memiliki kontrak kru.
-        </p>
-        <div className="stats">
+    <CompactWorkspace>
+      <Card title="SDM">
+        <ResponsiveColumns>
           <div>
-            <strong>{totalStaff}</strong>
-            <small>Kebutuhan posisi</small>
-          </div>
-          <div>
-            <strong>{totalStaff - missingStaff}</strong>
-            <small>Terpenuhi</small>
-          </div>
-          <div>
-            <strong>{missingStaff}</strong>
-            <small>Belum terisi</small>
-          </div>
-        </div>
-        {!staffing.length && (
-          <p className="muted">
-            Buat trainset di Armada terlebih dahulu. Kebutuhan SDM akan muncul
-            di sini.
-          </p>
-        )}
-        {staffing.map(({ trainset, needs }) => (
-          <div className="list-row" key={trainset.id}>
-            <div>
-              <b>{trainset.name}</b>
-              <small>
-                {needs.masinis} masinis · {needs.tractionSupport} asisten
-                masinis · {needs.kondektur} kondektur · {needs.onboardService}{" "}
-                petugas layanan
-              </small>
+            <h2>Tim kru operasional</h2>
+            <div className="stats">
+              <div>
+                <strong>{total}</strong>
+                <small>Kebutuhan posisi</small>
+              </div>
+              <div>
+                <strong>{total - missing}</strong>
+                <small>Terpenuhi</small>
+              </div>
+              <div>
+                <strong>{missing}</strong>
+                <small>Belum terisi</small>
+              </div>
             </div>
-            <span className={`pill ${trainset.crew ? "good" : "warn"}`}>
-              {trainset.crew ? "Terpenuhi" : "Perlu rekrut"}
-            </span>
+            <p>
+              Tim menyesuaikan formasi dan dinas otomatis. Satu masinis per
+              trainset; kondektur dan layanan mengikuti kapasitas penumpang.
+            </p>
+            <button
+              className="primary"
+              disabled={!missing}
+              onClick={() =>
+                act(
+                  { type: "recruitAuto" },
+                  `${missing} posisi direkrut otomatis. Kru trainset kini aktif.`,
+                )
+              }
+            >
+              Rekrut otomatis sesuai kebutuhan
+            </button>
+            <p className="muted">
+              Biaya tim {money(B.crewPerHour)}/jam dinas termasuk dalam biaya
+              perjalanan. Tidak ada biaya rekrut awal.
+            </p>
           </div>
-        ))}
-        <button
-          className="primary"
-          disabled={!missingStaff}
-          onClick={() =>
-            act(
-              { type: "recruitAuto" },
-              `SDM otomatis direkrut: ${missingStaff} posisi untuk ${staffing.filter((row) => !row.trainset.crew).length} trainset. Kontrak kru aktif.`,
-            )
-          }
-        >
-          Rekrut otomatis sesuai kebutuhan
-        </button>
-        <p className="muted">
-          1 masinis per trainset dan 1 kondektur per 4 kereta penumpang. Asisten
-          mengikuti dinas panjang, malam atau berat; petugas layanan mengikuti
-          kereta restorasi/luxury. Kontrak tim menyesuaikan kebutuhan ketika
-          formasi atau jadwal berubah. Biaya tim {money(B.crewPerHour)}/jam
-          dinas sudah termasuk biaya operasi; tidak ada biaya rekrut awal.
-        </p>
+          <div>
+            <PagedList
+              items={staffing}
+              render={({ trainset: t, needs: n }) => (
+                <div className="list-row" key={t.id}>
+                  <div>
+                    <b>{t.name}</b>
+                    <small>
+                      {n.masinis} masinis · {n.tractionSupport} asisten ·{" "}
+                      {n.kondektur} kondektur · {n.onboardService} layanan
+                    </small>
+                  </div>
+                  <span className={`pill ${t.crew ? "good" : "warn"}`}>
+                    {t.crew ? "Terpenuhi" : "Perlu rekrut"}
+                  </span>
+                </div>
+              )}
+            />
+            {!staffing.length && (
+              <p>Rakit trainset melalui Armada untuk melihat kebutuhan kru.</p>
+            )}
+          </div>
+        </ResponsiveColumns>
       </Card>
-      <Card title="Fuel & ketahanan operasi">
-        <label>
-          Dipo
-          <select value={depotId} onChange={(e) => setDepotId(e.target.value)}>
-            {s.depots.map((d) => (
-              <option key={d.station} value={d.station}>
-                {stationName(d.station)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="stats">
+      <Card title="Fuel">
+        <ResponsiveColumns>
           <div>
-            <strong>{Math.round(depot.stock)} L</strong>
-            <small>Stok dipo</small>
+            <label>
+              Depo
+              <select
+                value={depotId}
+                onChange={(e) => setDepot(e.target.value)}
+              >
+                {s.depots.map((d) => (
+                  <option key={d.station} value={d.station}>
+                    {stationName(d.station)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="stats">
+              <div>
+                <strong>
+                  {Math.round(depot.stock).toLocaleString("id-ID")}
+                </strong>
+                <small>Stok (L)</small>
+              </div>
+              <div>
+                <strong>{depot.capacity.toLocaleString("id-ID")}</strong>
+                <small>Kapasitas (L)</small>
+              </div>
+              <div>
+                <strong>
+                  {daily
+                    ? `${(((depot.stock / daily) * 24) / pace(s)).toFixed(1)}j`
+                    : "—"}
+                </strong>
+                <small>Horizon nyata*</small>
+              </div>
+            </div>
+            <p>
+              *Perkiraan stok berdasarkan rata-rata jadwal aktif; tangki onboard
+              dihitung terpisah.
+            </p>
+            <p className="fuel-price">
+              {money(quote.price)}
+              <small>/L · harga berlaku 30 menit UTC</small>
+            </p>
+            <button
+              disabled={!!depot.upgradeEnd}
+              onClick={() => act({ type: "upgrade", station: depotId })}
+            >
+              {depot.upgradeEnd
+                ? `Upgrade · ${remaining(depot.upgradeEnd, s)}`
+                : "Upgrade kapasitas 2× · Rp20 jt"}
+            </button>
           </div>
           <div>
-            <strong>{depot.capacity} L</strong>
-            <small>Kapasitas</small>
+            <label>
+              Liter pembelian
+              <input
+                type="number"
+                min={1}
+                max={depot.capacity - depot.stock}
+                value={liters}
+                onChange={(e) => setLiters(Number(e.target.value))}
+              />
+            </label>
+            <div className="toolbar">
+              <button
+                className="primary"
+                onClick={() =>
+                  act(
+                    {
+                      type: "fuel",
+                      station: depotId,
+                      liters,
+                      bucket: quote.bucket,
+                    },
+                    "Fuel masuk stok depo. Isi tangki trainset melalui Armada.",
+                  )
+                }
+              >
+                Beli · {compact(liters * quote.price)}
+              </button>
+              <button
+                onClick={() => {
+                  setQuote(fuelQuote(Date.now()));
+                  notify("Harga fuel diperbarui.");
+                }}
+              >
+                Perbarui harga
+              </button>
+            </div>
+            <button
+              onClick={() =>
+                setLiters(
+                  Math.min(
+                    depot.capacity - depot.stock,
+                    Math.ceil(
+                      Math.max(
+                        12084,
+                        ((daily * B.starterRealHours) / 24) * pace(s),
+                      ) * 1.1,
+                    ),
+                  ),
+                )
+              }
+            >
+              Pilih cadangan starter 24 jam
+            </button>
+            <p>
+              Pengisian di stasiun besar tersedia tanpa membangun depo. Armada →
+              Isi tangki penuh memakai stok dahulu, lalu membeli kekurangan.
+            </p>
+            <p className="muted">
+              Untuk pembelian saat keberangkatan, aktifkan pilihan fuel otomatis
+              pada Jadwal. Save lama tetap memakai stok sampai pilihan ini
+              diaktifkan.
+            </p>
           </div>
-          <div>
-            <strong>
-              {daily > 0
-                ? `${(((depot.stock / daily) * 24) / pace(s)).toFixed(1)} j`
-                : "—"}
-            </strong>
-            <small>Horizon nyata*</small>
-          </div>
-        </div>
-        <p className="muted">
-          *Perkiraan rata-rata jadwal, terpisah dari fuel onboard dan risiko
-          departure. Target starter 24 jam nyata; cadangan harus dikalibrasi
-          terhadap diagram.
-        </p>
-        <p className="fuel-price">
-          {money(quote.price)}
-          <small>/liter · bucket UTC 30 menit</small>
-        </p>
-        <label>
-          Liter pembelian
-          <input
-            type="number"
-            min="1"
-            max={depot.capacity - depot.stock}
-            value={liters}
-            onChange={(e) => setLiters(Number(e.target.value))}
-          />
-        </label>
-        <div className="toolbar">
-          <button
-            className="primary"
-            onClick={() =>
-              act(
-                {
-                  type: "fuel",
-                  station: depotId,
-                  liters,
-                  bucket: quote.bucket,
-                },
-                "Fuel dibeli ke dipo. Isi tangki dari detail trainset.",
-              )
-            }
-          >
-            Beli · {compact(liters * quote.price)}
-          </button>
-          <button
-            onClick={() => {
-              setQuote(fuelQuote(Date.now()));
-              notify("Harga fuel diperbarui.");
-            }}
-          >
-            Refresh quote
-          </button>
-        </div>
-        <button
-          onClick={() => {
-            setLiters(
-              Math.min(
-                depot.capacity - depot.stock,
-                Math.ceil(
-                  Math.max(
-                    4028,
-                    ((daily * B.starterRealHours) / 24) * pace(s),
-                  ) * 1.1,
-                ),
-              ),
-            );
-            notify(
-              "Jumlah cadangan starter dipilih. Tekan Beli untuk membeli fuel.",
-            );
-          }}
-        >
-          Cadangan starter + tangki
-        </button>
-        <p className="muted">
-          Tidak ada auto-purchase. Quote kedaluwarsa ditolak. Harga dihitung
-          secara publik di browser; belum divalidasi server.
-        </p>
-        <button
-          disabled={!!depot.upgradeEnd}
-          onClick={() => act({ type: "upgrade", station: depotId })}
-        >
-          {depot.upgradeEnd
-            ? `Upgrade · ${remaining(depot.upgradeEnd, s)}`
-            : "Upgrade gudang 2× · Rp20 jt · 6 jam game"}
-        </button>
+        </ResponsiveColumns>
       </Card>
-      <Card title="Hasil & pilihan investasi">
-        <div className="stats">
-          <div>
-            <strong>{completed.length}</strong>
-            <small>Dinas selesai</small>
-          </div>
-          <div>
-            <strong>
-              {compact(completed.reduce((v, r) => v + r.revenue - r.cost, 0))}
-            </strong>
-            <small>Kontribusi dinas</small>
-          </div>
-        </div>
-        <p className="muted">
-          Kontribusi tidak sama dengan laba perusahaan setelah biaya tetap.
-          Pilih sasaran: lokomotif cadangan, kenyamanan, atau koridor terhubung.
-        </p>
-        {completed.slice(-4).map((r) => (
-          <div key={r.id}>
-            <b>{r.name}</b>
-            <RunReport run={r} state={s} />
-          </div>
-        ))}
+      <Card title="Kontrak kargo">
+        <CargoContracts state={s} act={act} go={go} />
       </Card>
-      <Card title="Marketing · awareness sementara">
+      <Card title="Hasil">
+        <ResponsiveColumns>
+          <div>
+            <h2>{completed.length} dinas selesai</h2>
+            <p>
+              Kontribusi perjalanan:{" "}
+              {compact(completed.reduce((v, r) => v + r.revenue - r.cost, 0))}{" "}
+              sebelum biaya tetap perusahaan.
+            </p>
+            <p>
+              Investasi industri dan hadiah misi terpisah dari pendapatan
+              operasi pada ledger.
+            </p>
+          </div>
+          <div>
+            <PagedList
+              size={1}
+              items={[...completed].reverse()}
+              render={(r) => <RunReport key={r.id} run={r} state={s} />}
+            />
+          </div>
+        </ResponsiveColumns>
+      </Card>
+      <Card title="Marketing">
         {B.marketing.map((tier, i) => (
           <div className="list-row" key={tier.name}>
             <div>
               <b>{tier.name}</b>
               <small>
-                {tier.days} hari game · hingga +{tier.lift * 100}% · tidak
-                menambah reputasi permanen
+                {tier.days} hari game · hingga +{tier.lift * 100}% awareness
               </small>
             </div>
             <button onClick={() => act({ type: "marketing", tier: i })}>
@@ -271,65 +287,76 @@ export function Office({
           </div>
         ))}
         <p className="muted">
-          Overlap memakai lift terbesar; boost tidak ditumpuk linear. Harga
-          paket sementara.
+          Overlap memakai peningkatan terbesar; reputasi permanen tidak berubah.
         </p>
       </Card>
       <Card title="Tempo & checkpoint">
-        <label>
-          Mode
-          <select
-            value={s.mode}
-            onChange={(e) =>
-              act({ type: "mode", mode: e.target.value as CoreState["mode"] })
-            }
-          >
-            <option>Realism</option>
-            <option>Casual</option>
-          </select>
-        </label>
-        <p className="muted">
-          Realism 1×; Casual 1,5×. Berlaku online dan saat tab ditutup. Save
-          browser bukan akun lintas perangkat; ekspor/import untuk memindahkan
-          checkpoint.
-        </p>
-        <div className="toolbar">
-          <button onClick={exportSave}>
-            <Download size={15} /> Ekspor save
-          </button>
-          <label className="import-button">
-            <Upload size={15} /> Impor save
-            <input
-              type="file"
-              accept="application/json"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void importSave(f);
-                e.target.value = "";
-              }}
-            />
-          </label>
-        </div>
+        <ResponsiveColumns>
+          <div>
+            <label>
+              Mode
+              <select
+                value={s.mode}
+                onChange={(e) =>
+                  act({
+                    type: "mode",
+                    mode: e.target.value as CoreState["mode"],
+                  })
+                }
+              >
+                <option>Realism</option>
+                <option>Casual</option>
+              </select>
+            </label>
+            <p>
+              Realism 1× / Casual 1,5×, termasuk saat aplikasi ditutup. Ekonomi
+              dipercepat lewat harga sarana, margin operasi dan kontrak; jam
+              tidak dilompati.
+            </p>
+          </div>
+          <div>
+            <p>
+              Save tersimpan di browser ini. Ekspor untuk cadangan atau
+              berpindah perangkat.
+            </p>
+            <div className="toolbar">
+              <button onClick={exportSave}>Ekspor save</button>
+              <label className="import-button">
+                Impor save
+                <input
+                  type="file"
+                  accept="application/json"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) importSave(f);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+        </ResponsiveColumns>
       </Card>
-      <Card title="Ledger perusahaan">
-        {s.ledger
-          .slice(-15)
-          .reverse()
-          .map((entry) => (
-            <div className="list-row" key={entry.id}>
+      <Card title="Ledger">
+        <PagedList
+          size={5}
+          items={[...s.ledger].reverse()}
+          render={(e) => (
+            <div className="list-row" key={e.id}>
               <div>
-                <b>{entry.label}</b>
+                <b>{e.label}</b>
                 <small>
-                  {when(entry.minute)} · biaya {compact(entry.expense)}
+                  {when(e.minute)} · biaya {compact(e.expense)}
                 </small>
               </div>
-              <span className={entry.cash >= 0 ? "positive" : ""}>
-                {entry.cash >= 0 ? "+" : ""}
-                {compact(entry.cash)}
+              <span className={e.cash >= 0 ? "positive" : ""}>
+                {e.cash >= 0 ? "+" : ""}
+                {compact(e.cash)}
               </span>
             </div>
-          ))}
+          )}
+        />
       </Card>
-    </div>
+    </CompactWorkspace>
   );
 }

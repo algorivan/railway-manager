@@ -57,7 +57,7 @@ function operating() {
     {
       type: "fuel",
       station: s.hub,
-      liters: 6000,
+      liters: 16000,
       bucket: fuelQuote(epoch).bucket,
     },
     "fuel",
@@ -168,7 +168,7 @@ describe("v7 browser operations", () => {
     s.services[0]!.stations = [s.hub, "STN_GMR_GAMBIR"];
     s.services[0]!.segments = ["SEG_GMR_BD"];
     s.services[0]!.stops = [...s.services[0]!.stations];
-    s = apply(s, { type: "fuel", station: s.hub, liters: 6000, bucket: fuelQuote(epoch).bucket }, "legacy-fuel", epoch);
+    s = apply(s, { type: "fuel", station: s.hub, liters: 16000, bucket: fuelQuote(epoch).bucket }, "legacy-fuel", epoch);
     s = apply(s, { type: "fill", trainsetId: s.trainsets[0]!.id }, "legacy-fill", epoch);
     s = apply(s, { type: "schedule", trainsetId: s.trainsets[0]!.id, serviceId: s.services[0]!.id, cycle: 1440, offset: 422, roundTrip: false }, "legacy-plan", epoch);
     s = at(s, 430);
@@ -245,7 +245,7 @@ describe("v7 browser operations", () => {
       EX: 0,
       LX: 0,
     });
-    expect(s.cash).toBe(150_000_000);
+    expect(s.cash).toBe(500_000_000);
   });
   it("does not commission an undelivered order or use it as a trainset", () => {
     const s = apply(
@@ -386,7 +386,7 @@ describe("v7 browser operations", () => {
     expect(after.cash).toBeCloseTo(before + cashMovement, 5);
     const allLiters =
       after.depots[0]!.stock + after.units.reduce((v, u) => v + u.fuel, 0);
-    expect(allLiters).toBeCloseTo(6000 - 320 * 2.8, 5);
+    expect(allLiters).toBeCloseTo(16000 - 320 * 2.8, 5);
   });
   it("rejects expired quotes and negative/over-capacity purchases", () => {
     const s = setup();
@@ -422,7 +422,7 @@ describe("v7 browser operations", () => {
         {
           type: "fuel",
           station: s.hub,
-          liters: 15000,
+          liters: s.depots[0]!.capacity + 1,
           bucket: fuelQuote(epoch).bucket,
         },
         "large",
@@ -452,7 +452,7 @@ describe("v7 browser operations", () => {
     expect(after.depots[0]!.capacity).toBe(s.depots[0]!.capacity * 2);
     expect(after.depots[0]!.stock).toBe(s.depots[0]!.stock);
     expect(coreFormation(after, after.trainsets[0]!).products[0]!.tank).toBe(
-      3028,
+      9084,
     );
     expect(at(after, 900).depots[0]!.capacity).toBe(after.depots[0]!.capacity);
   });
@@ -574,8 +574,8 @@ describe("v7 browser operations", () => {
       "p1-coach",
       epoch,
     );
-    expect(s.units[0]!.job!.end).toBe(540);
-    expect(s.units[1]!.job!.end).toBe(600);
+    expect(s.units[0]!.job!.end).toBe(450);
+    expect(s.units[1]!.job!.end).toBe(465);
   });
   it("rejects malformed saves and disconnected path references without mutating the original", () => {
     const s = operating();
@@ -609,7 +609,7 @@ describe("v7 browser operations", () => {
     expect(
       returned.depots[0]!.stock +
         returned.units.reduce((v, u) => v + u.fuel, 0),
-    ).toBeCloseTo(6000 - (forwardKm + returnKm) * fuelPerKm, 5);
+    ).toBeCloseTo(16000 - (forwardKm + returnKm) * fuelPerKm, 5);
     expect(returned.ledger.filter((e) => e.id === `${id}:recall`)).toHaveLength(
       1,
     );
@@ -642,7 +642,7 @@ describe("v7 browser operations", () => {
       {
         type: "fuel",
         station: s.hub,
-        liters: 6000,
+        liters: 16000,
         bucket: fuelQuote(epoch).bucket,
       },
       "fuel",

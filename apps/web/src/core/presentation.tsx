@@ -31,7 +31,7 @@ export function Asset({
   return (
     <img
       className={`vehicle-art ${className}`}
-      src={`/vehicles/${p.asset}.webp`}
+      src={`/vehicles/${p.asset}.${p.kind === "cargo" ? "svg" : "webp"}`}
       alt={p.name}
     />
   );

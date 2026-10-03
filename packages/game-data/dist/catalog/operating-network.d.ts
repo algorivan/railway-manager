@@ -1,6 +1,7 @@
 import type { StationCatalogEntry } from "../schemas/station.schema.js";
 import type { TrackCorridorSegment } from "../schemas/track.schema.js";
 import { type StationDemandContext } from "./station-demand.js";
+import { type GameStationClass, type HubProximity } from "./station-class.js";
 export type RailPoint = [number, number];
 export interface OsmNetworkSnapshot {
     importedAt: string | null;
@@ -42,6 +43,8 @@ export interface OperatingStation extends Omit<StationCatalogEntry, "region"> {
     stationClass?: string;
     city?: string;
     demandContext?: StationDemandContext;
+    gameClass?: GameStationClass;
+    hubProximity?: HubProximity;
 }
 export interface OperatingTrack extends TrackCorridorSegment {
     geometry?: RailPoint[];
@@ -67,10 +70,10 @@ export declare const CORE_GAME_CORRIDORS: {
     isDoubleTrack: boolean;
     trackGaugeMm: number;
 }[];
-export declare const CORE_OPERATING_STATIONS: readonly OperatingStation[];
-export declare const CORE_SELECTABLE_STATIONS: OperatingStation[];
 export declare const CORE_OPERATING_TRACKS: readonly OperatingTrack[];
 export declare const CORE_ROUTING_TRACKS: OperatingTrack[];
+export declare const CORE_OPERATING_STATIONS: readonly OperatingStation[];
+export declare const CORE_SELECTABLE_STATIONS: OperatingStation[];
 export declare const CORE_NETWORK_SOURCE: {
     importedAt: string | null;
     importedStationCount: number;

@@ -1,11 +1,11 @@
 /** Provisional single-player balance. These are game rules, not KAI specifications. */
 export declare const CORE_BALANCE: {
     readonly starterHub: "STN_BD_BANDUNG";
-    readonly starterReserveCash: 150000000;
+    readonly starterReserveCash: 500000000;
     readonly fuelBasePrice: 14000;
     readonly fuelReserve: 0.1;
     readonly starterRealHours: 24;
-    readonly depotCapacity: 12000;
+    readonly depotCapacity: 50000;
     readonly dwellMinutes: 3;
     readonly turnaroundMinutes: 60;
     readonly changeServiceMinutes: 30;
@@ -20,7 +20,7 @@ export declare const CORE_BALANCE: {
     readonly corridorAccessCost: 25000000;
     readonly storageUpgradeCost: 20000000;
     readonly p1CostFraction: 0.001;
-    readonly retrofitCostFraction: 0.35;
+    readonly retrofitCostFraction: 0.08;
     readonly marketing: readonly [{
         readonly name: "Promosi hub";
         readonly cost: 5000000;
@@ -43,8 +43,10 @@ export type CoreClass = "EC" | "EX" | "LX";
 export interface CoreProduct {
     id: string;
     name: string;
-    kind: "loco" | "coach" | "generator" | "dining";
+    kind: "loco" | "coach" | "generator" | "dining" | "cargo";
     asset: string;
+    cargoType?: "oil" | "mineral" | "logistics";
+    cargoTons?: number;
     seats: number;
     serviceClass?: CoreClass;
     price: number;
@@ -58,7 +60,35 @@ export interface CoreProduct {
     powerKw: number;
     deliveryMinutes: number;
 }
+/** Planning-first balance v2: physical weight/length/speed stay intact; capital and delivery times are game values. */
 export declare const CORE_PRODUCTS: readonly CoreProduct[];
+export declare const CORE_REFUEL_STATION_CODES: Set<string>;
+export declare const CORE_CARGO_OFFERS: readonly [{
+    readonly id: "oil";
+    readonly name: "Distribusi migas";
+    readonly investment: 1800000000;
+    readonly paymentPerTonKm: 5000;
+    readonly bonus: 100000000;
+    readonly trips: 6;
+    readonly days: 4;
+}, {
+    readonly id: "mineral";
+    readonly name: "Angkutan mineral";
+    readonly investment: 1600000000;
+    readonly paymentPerTonKm: 4200;
+    readonly bonus: 90000000;
+    readonly trips: 8;
+    readonly days: 5;
+}, {
+    readonly id: "logistics";
+    readonly name: "Logistik kontainer";
+    readonly investment: 1500000000;
+    readonly paymentPerTonKm: 5500;
+    readonly bonus: 120000000;
+    readonly trips: 8;
+    readonly days: 5;
+}];
+export declare const CORE_ECONOMY_VERSION = 2;
 export declare const CORE_FARES: {
     readonly EC: {
         readonly boarding: 5000;
