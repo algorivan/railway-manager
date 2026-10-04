@@ -19,6 +19,11 @@ import {
 } from "@railway/simulation";
 
 import { railConsistLayout, travelledRail } from "./rail-consist";
+import {
+  mapVehicleVector,
+  MAP_CONSIST_SCALE,
+  MAP_CONSIST_HEIGHT,
+} from "./map-vehicle-vector";
 
 export function CoreMap({
   state,
@@ -78,6 +83,7 @@ export function CoreMap({
     const m = L.map(element.current, {
       zoomControl: false,
       preferCanvas: false,
+      zoomAnimation: false,
     }).setView([hub.coordinates.lat, hub.coordinates.lng], 8);
     map.current = m;
     m.on("popupopen", () => setMapPopupOpen(true));
@@ -335,10 +341,7 @@ export function CoreMap({
         const pixels = trail.map((p) => m.latLngToLayerPoint(p));
         const a = m.latLngToLayerPoint(points[0]!),
           b = m.latLngToLayerPoint(points[1] ?? points[0]!);
-        const scale = Math.min(
-          1.35,
-          Math.max(0.65, 0.65 + (m.getZoom() - 8) * 0.12),
-        );
+        const scale = MAP_CONSIST_SCALE;
         const layout = railConsistLayout(
           pixels,
           ordered.map((p) => p.length),
@@ -356,18 +359,12 @@ export function CoreMap({
           );
           let entry = trainMarkers.current.get(key);
           const icon = () => {
-            const art = document.createElement("img");
-            art.src = `/vehicles/${product.asset}.${product.kind === "cargo" ? "svg" : "webp"}`;
-            art.alt = product.name;
-            art.className = "map-consist-unit";
-            art.draggable = false;
-            art.style.width = `${position.width}px`;
-            art.style.height = `${Math.max(10, 14 * scale)}px`;
+            const art = mapVehicleVector(product, position.width);
             return L.divIcon({
               className: `core-consist-marker ${product.kind === "loco" ? "locomotive" : ""}`,
               html: art,
-              iconSize: [position.width, Math.max(10, 14 * scale)],
-              iconAnchor: [position.width / 2, Math.max(10, 14 * scale) / 2],
+              iconSize: [position.width, MAP_CONSIST_HEIGHT],
+              iconAnchor: [position.width / 2, MAP_CONSIST_HEIGHT / 2],
             });
           };
           if (!entry) {
@@ -442,9 +439,8 @@ export function CoreMap({
               label;
           const art = entry.marker
             .getElement()
-            ?.querySelector<HTMLImageElement>("img");
-          if (art)
-            art.style.transform = `rotate(${position.angle}deg) scaleY(${Math.cos((position.angle * Math.PI) / 180) < 0 ? -1 : 1})`;
+            ?.querySelector<SVGSVGElement>("svg");
+          if (art) art.style.transform = `rotate(${position.angle}deg)`;
           if (index === 0 && followingRef.current === run.trainsetId) {
             followed = true;
             m.panTo(location, { animate: false });

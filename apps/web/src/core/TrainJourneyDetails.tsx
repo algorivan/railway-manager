@@ -4,8 +4,7 @@ import {
   type CoreState,
 } from "@railway/simulation";
 import { RunReport } from "./RunReport";
-import { Asset } from "./presentation";
-import { groupFormationUnits } from "./formation-draft";
+import { ConsistStrip } from "./ConsistStrip";
 export function TrainJourneyDetails({
   state: s,
   trainsetId,
@@ -35,14 +34,7 @@ export function TrainJourneyDetails({
         <h2>{t?.name ?? "Trainset tidak ditemukan"}</h2>
         {t && f && (
           <>
-            <div className="journey-consist">
-              {groupFormationUnits(f.units).map((g) => (
-                <div key={g.productId}>
-                  <Asset id={g.productId} />
-                  <b>×{g.unitIds.length}</b>
-                </div>
-              ))}
-            </div>
+            <ConsistStrip units={f.units} />
             <div className="formation-metrics">
               <div>
                 <strong>{f.units.length}</strong>

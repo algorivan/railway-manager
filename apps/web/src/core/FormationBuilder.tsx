@@ -54,12 +54,10 @@ export function FormationBuilder({
         ),
     ),
     remaining = available.filter((u) => !ids.includes(u.id)),
-    groups = groupFormationUnits(
-      ids.flatMap((id) => {
-        const unit = available.find((u) => u.id === id);
-        return unit ? [unit] : [];
-      }),
-    ),
+    selected = ids.flatMap((id) => {
+      const unit = available.find((u) => u.id === id);
+      return unit ? [unit] : [];
+    }),
     stock = groupFormationUnits(remaining),
     formation = coreFormation(s, {
       id: t?.id ?? "draft",
@@ -77,7 +75,7 @@ export function FormationBuilder({
   const finish = (drag: FormationDrag, target: FormationDrop) => {
     setIds((current) => dropFormationUnits(current, available, drag, target));
     setAnnouncement(
-      `${coreProduct(drag.productId).name}: ${target.area === "inventory" ? "grup dikembalikan ke inventori" : "rangkaian diperbarui"}.`,
+      `${coreProduct(drag.productId).name}: ${target.area === "inventory" ? "unit dikembalikan ke inventori" : "rangkaian diperbarui"}.`,
     );
     setHeld(null);
     setHover(null);
@@ -132,13 +130,18 @@ export function FormationBuilder({
     if (!p || p.id !== e.pointerId) return;
     pointer.current = null;
     if (p.moved) dropOn(targetAt(e.clientX, e.clientY), p.drag);
-    // A tap/click is the accessible lift-and-place alternative to dragging.
+    else if (e.pointerType === "touch") {
+      // Some touch browsers omit the compatibility click after scrolling a grid.
+      draggedClick.current = true;
+      lift(p.drag);
+    }
+    // Click/keyboard and touch taps can lift-and-place without dragging.
   };
   const lift = (drag: FormationDrag) => {
     if (held) {
       finish(held, {
         area: drag.source === "formation" ? "formation" : "inventory",
-        before: drag.source === "formation" ? drag.productId : undefined,
+        before: drag.source === "formation" ? drag.unitId : undefined,
       });
     } else {
       setHeld({ ...drag, x: 0, y: 0, moving: false });
@@ -151,22 +154,34 @@ export function FormationBuilder({
   const card = (
     group: { productId: string; unitIds: string[] },
     source: FormationDrag["source"],
+    position?: number,
   ) => {
     const product = coreProduct(group.productId),
-      drag = { source, productId: group.productId };
+      unitId = source === "formation" ? group.unitIds[0] : undefined,
+      drag: FormationDrag =
+        source === "formation"
+          ? { source, productId: group.productId, unitId: unitId! }
+          : { source, productId: group.productId };
+    const isHeld =
+      held?.source === source &&
+      held.productId === group.productId &&
+      (held.source !== "formation" || held.unitId === unitId);
     return (
       <button
-        key={group.productId}
+        key={unitId ?? group.productId}
         type="button"
-        className={`builder-unit ${held?.productId === group.productId && held.source === source ? "lifted" : ""} ${hover === `formation:${group.productId}` && source === "formation" ? "drop-over" : ""}`}
+        className={`builder-unit ${isHeld ? "lifted" : ""} ${hover === `formation:${unitId}` && source === "formation" ? "drop-over" : ""}`}
         data-product={group.productId}
         data-source={source}
+        data-unit={unitId}
         data-formation-drop={source === "formation" ? "formation" : undefined}
-        data-before={source === "formation" ? group.productId : undefined}
-        aria-label={`${source === "inventory" ? "Inventori" : "Rangkaian"}: ${product.name}, ${group.unitIds.length} unit`}
-        aria-pressed={
-          held?.productId === group.productId && held.source === source
+        data-before={unitId}
+        aria-label={
+          source === "inventory"
+            ? `Inventori: ${product.name}, ${group.unitIds.length} unit`
+            : `Rangkaian: unit ${(position ?? 0) + 1}, ${product.name}`
         }
+        aria-pressed={isHeld}
         onPointerDown={(e) => {
           draggedClick.current = false;
           begin(e, drag);
@@ -189,13 +204,17 @@ export function FormationBuilder({
           lift(drag);
         }}
       >
-        <span className="unit-multiplier">×{group.unitIds.length}</span>
+        {source === "inventory" ? (
+          <span className="unit-multiplier">×{group.unitIds.length}</span>
+        ) : (
+          <span className="unit-position">{(position ?? 0) + 1}</span>
+        )}
         <Asset id={group.productId} />
         <b>{product.name}</b>
         <small>
           {source === "inventory"
             ? "Seret 1 unit ke rangkaian"
-            : "Seret untuk atur grup"}
+            : "Seret untuk atur unit"}
         </small>
       </button>
     );
@@ -301,7 +320,7 @@ export function FormationBuilder({
           >
             <header>
               <b>Rangkaian · {ids.length} unit</b>
-              <small>Seret grup untuk ubah urutan</small>
+              <small>Seret unit untuk ubah urutan</small>
             </header>
             <div
               {...zoneProps("formation")}
@@ -311,8 +330,14 @@ export function FormationBuilder({
               aria-label="Letakkan di akhir rangkaian"
               className="builder-scroll builder-grid detail-scroll"
             >
-              {groups.map((g) => card(g, "formation"))}
-              {!groups.length && (
+              {selected.map((unit, index) =>
+                card(
+                  { productId: unit.productId, unitIds: [unit.id] },
+                  "formation",
+                  index,
+                ),
+              )}
+              {!selected.length && (
                 <span className="builder-empty">
                   Seret lokomotif dan gerbong ke sini
                 </span>
@@ -325,20 +350,20 @@ export function FormationBuilder({
           >
             <header>
               <b>Inventori · {remaining.length} unit</b>
-              <small>Seret kembali untuk melepas grup</small>
+              <small>Seret kembali untuk melepas unit</small>
             </header>
             <div
               {...zoneProps("inventory")}
               tabIndex={0}
               role="group"
               aria-keyshortcuts="Enter Space"
-              aria-label="Kembalikan grup ke inventori"
+              aria-label="Kembalikan unit ke inventori"
               className="builder-scroll builder-grid detail-scroll"
             >
               {stock.map((g) => card(g, "inventory"))}
               {!stock.length && (
                 <span className="builder-empty">
-                  Semua unit telah dirangkai. Seret grup ke sini untuk melepas.
+                  Semua unit telah dirangkai. Seret unit ke sini untuk melepas.
                 </span>
               )}
             </div>

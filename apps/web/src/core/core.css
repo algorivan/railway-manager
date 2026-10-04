@@ -3471,25 +3471,6 @@
   display: block;
   font-size: 10px;
 }
-.consist-group {
-  position: relative;
-  flex: 0 0 100px;
-  padding-bottom: 12px;
-}
-.fleet-readiness .consist-group img {
-  width: 100%;
-  height: 45px;
-}
-.consist-group > b {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  border-radius: 6px;
-  background: #244f49;
-  color: white;
-  padding: 1px 5px;
-  font-size: 14px;
-}
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -3533,7 +3514,7 @@
 }
 .map-consist-unit {
   display: block;
-  object-fit: fill;
+  overflow: visible;
   transform-origin: center;
   filter: drop-shadow(0 1px 2px #0008);
   user-select: none;
@@ -3617,29 +3598,6 @@
   margin: 0 0 8px;
   font-size: 17px;
 }
-.journey-consist {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  margin-bottom: 10px;
-}
-.journey-consist > div {
-  min-width: 0;
-  position: relative;
-  background: #f0f5f0;
-  padding: 4px;
-  border-radius: 5px;
-}
-.journey-consist .vehicle-art {
-  width: 100%;
-  height: 38px;
-  object-fit: contain;
-}
-.journey-consist b {
-  display: block;
-  text-align: right;
-  font-size: 13px;
-}
 .journey-detail-scroll .formation-metrics strong {
   font-size: 18px;
 }
@@ -3676,5 +3634,53 @@
   }
   .camera-follow b {
     max-width: 140px;
+  }
+}
+
+.unit-position {
+  position: absolute;
+  top: 3px;
+  left: 5px;
+  border-radius: 5px;
+  padding: 1px 5px;
+  background: #eaf2ed;
+  color: #244f49;
+  font-weight: 700;
+  font-size: 11px;
+}
+.consist-strip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding: 4px 0 8px;
+}
+.consist-vehicle {
+  position: relative;
+  flex-basis: 0;
+  flex-shrink: 0;
+  min-width: 28px;
+  max-width: 80px;
+}
+.consist-vehicle .vehicle-art {
+  display: block;
+  width: 100%;
+  height: 34px;
+  object-fit: contain;
+  margin: 0;
+}
+.consist-vehicle small {
+  display: block;
+  text-align: center;
+  font-size: 9px;
+  color: var(--muted);
+}
+
+@media (max-width: 700px) {
+  .core-game .leaflet-control-zoom {
+    margin-top: 150px;
   }
 }

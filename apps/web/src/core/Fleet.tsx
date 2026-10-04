@@ -7,10 +7,10 @@ import {
   type CoreState,
   type CoreTrainset,
 } from "@railway/simulation";
-import { Asset, Card, type Act, type Screen } from "./presentation";
+import { Card, type Act, type Screen } from "./presentation";
 import { CompactWorkspace, ResponsiveColumns } from "./Compact";
 import { FormationBuilder } from "./FormationBuilder";
-import { groupFormationUnits } from "./formation-draft";
+import { ConsistStrip } from "./ConsistStrip";
 import { RunReport } from "./RunReport";
 import { Depot } from "./Depot";
 export function Fleet({
@@ -99,14 +99,7 @@ export function Fleet({
                       {stationName(t.location)} ·{" "}
                       {t.parked ? "Parkir depo" : "Siap penugasan"}
                     </p>
-                    <div className="consist-art">
-                      {groupFormationUnits(f.units).map((group) => (
-                        <div className="consist-group" key={group.productId}>
-                          <Asset id={group.productId} />
-                          <b>×{group.unitIds.length}</b>
-                        </div>
-                      ))}
-                    </div>
+                    <ConsistStrip units={f.units} />
                     <div
                       className="formation-metrics"
                       aria-label="Kapasitas trainset"

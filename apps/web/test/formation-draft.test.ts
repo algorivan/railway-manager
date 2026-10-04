@@ -9,7 +9,7 @@ const units = [
   { id: "power", productId: "generator" },
 ];
 describe("formation drag and drop", () => {
-  it("displays one card per product and retains each unit identity", () => {
+  it("groups available stock cards while retaining each unit identity", () => {
     expect(groupFormationUnits(units)).toEqual([
       { productId: "cc201", unitIds: ["loco"] },
       {
@@ -19,23 +19,29 @@ describe("formation drag and drop", () => {
       { productId: "generator", unitIds: ["power"] },
     ]);
   });
-  it("transfers one available copy and consolidates repeated units", () => {
+  it("transfers one available copy at the chosen position without grouping the consist", () => {
     let draft = ["loco", "coach1", "power"];
-    for (let i = 2; i <= 4; i++)
-      draft = dropFormationUnits(
-        draft,
-        units,
-        { source: "inventory", productId: "ec-standard" },
-        { area: "formation" },
-      );
-    expect(draft).toEqual([
-      "loco",
-      "coach1",
-      "coach2",
-      "coach3",
-      "coach4",
-      "power",
-    ]);
+    draft = dropFormationUnits(
+      draft,
+      units,
+      { source: "inventory", productId: "ec-standard" },
+      { area: "formation", before: "power" },
+    );
+    expect(draft).toEqual(["loco", "coach1", "coach2", "power"]);
+    draft = dropFormationUnits(
+      draft,
+      units,
+      { source: "inventory", productId: "ec-standard" },
+      { area: "formation" },
+    );
+    expect(draft).toEqual(["loco", "coach1", "coach2", "power", "coach3"]);
+    draft = dropFormationUnits(
+      draft,
+      units,
+      { source: "inventory", productId: "ec-standard" },
+      { area: "formation" },
+    );
+    expect(new Set(draft).size).toBe(6);
     expect(
       dropFormationUnits(
         draft,
@@ -44,51 +50,50 @@ describe("formation drag and drop", () => {
         { area: "formation" },
       ),
     ).toEqual(draft);
-    expect(new Set(draft).size).toBe(6);
   });
-  it("moves the entire grouped block before another card or to the end", () => {
+  it("reorders a specific coach independently of identical neighbours", () => {
     const draft = units.map((u) => u.id);
     const moved = dropFormationUnits(
       draft,
       units,
-      { source: "formation", productId: "generator" },
-      { area: "formation", before: "ec-standard" },
+      { source: "formation", productId: "ec-standard", unitId: "coach3" },
+      { area: "formation", before: "coach1" },
     );
     expect(moved).toEqual([
       "loco",
-      "power",
+      "coach3",
       "coach1",
       "coach2",
-      "coach3",
       "coach4",
+      "power",
     ]);
     expect(
       dropFormationUnits(
         moved,
         units,
-        { source: "formation", productId: "generator" },
+        { source: "formation", productId: "ec-standard", unitId: "coach3" },
         { area: "formation" },
       ),
-    ).toEqual(draft);
+    ).toEqual(["loco", "coach1", "coach2", "coach4", "power", "coach3"]);
     expect(
       dropFormationUnits(
         draft,
         units,
-        { source: "formation", productId: "ec-standard" },
-        { area: "formation", before: "ec-standard" },
+        { source: "formation", productId: "ec-standard", unitId: "coach1" },
+        { area: "formation", before: "coach1" },
       ),
     ).toEqual(draft);
   });
-  it("returns a whole group without removing other products", () => {
+  it("returns only the selected unit and leaves identical coaches in formation", () => {
     const draft = units.map((u) => u.id);
     expect(
       dropFormationUnits(
         draft,
         units,
-        { source: "formation", productId: "ec-standard" },
+        { source: "formation", productId: "ec-standard", unitId: "coach2" },
         { area: "inventory" },
       ),
-    ).toEqual(["loco", "power"]);
+    ).toEqual(["loco", "coach1", "coach3", "coach4", "power"]);
     expect(
       dropFormationUnits(
         draft,
@@ -99,12 +104,28 @@ describe("formation drag and drop", () => {
     ).toEqual(draft);
     expect(draft).toEqual(units.map((u) => u.id));
   });
-  it("ignores unavailable products and never introduces unknown unit ids", () => {
+  it("ignores unavailable products, wrong unit identities and units already assigned elsewhere", () => {
     expect(
       dropFormationUnits(
         ["loco"],
         units,
         { source: "inventory", productId: "missing" },
+        { area: "formation" },
+      ),
+    ).toEqual(["loco"]);
+    expect(
+      dropFormationUnits(
+        ["loco", "coach1"],
+        units,
+        { source: "formation", productId: "cc201", unitId: "coach1" },
+        { area: "inventory" },
+      ),
+    ).toEqual(["loco", "coach1"]);
+    expect(
+      dropFormationUnits(
+        ["loco"],
+        units,
+        { source: "formation", productId: "ec-standard", unitId: "coach1" },
         { area: "formation" },
       ),
     ).toEqual(["loco"]);

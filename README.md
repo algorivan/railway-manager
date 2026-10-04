@@ -27,7 +27,7 @@ The app saves to browser storage. Use **Kantor → Ekspor save / Impor save** to
 
 1. Choose a depot city and its contract cost, then a compatible first hub. Mission onboarding guides the remaining steps.
 2. In Pasar, purchase the new CC201, four Economy Standard coaches and a generator separately. Accept each starter order; the starter vendor stock is already at the hub. Further orders have production lead times.
-3. In Armada, drag the six units from inventory into the formation on the same page, then save the trainset. Identical products share a card with a multiplier; capacity is 424 EC seats.
+3. In Armada, drag the six units from inventory into the formation on the same page, then save the trainset. Identical available inventory products share a card with a multiplier; the formation shows every unit separately. Capacity is 424 EC seats.
 4. Activate the crew contract. Buy fuel in Kantor, then fill the trainset's tanks in Armada. The reserve preset is provisional; review the actual diagram's consumption.
 5. In Jadwal, create a reusable relation, choose the trainset, set the A→B and B→A departure clocks, or fill as many PP as fit. Choose “Setiap hari” (daily game time), edit selected timetable trips, then press “Simpan & aktifkan jadwal”. The daily recap lists each commercial station as Tujuan | Tiba | Berangkat. Saved timetables can be edited directly. Departure is automatic after readiness checks. Held departures require confirmation after recovery.
 6. Review contribution, segment-weighted occupancy, fuel, maintenance and expansion choices after operations.
