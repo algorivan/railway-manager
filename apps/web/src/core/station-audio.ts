@@ -7,6 +7,9 @@ export class StationAudio {
   private enabled = true;
   private disposed = false;
   private active = false;
+  private moving = false;
+  private train: HTMLAudioElement | null = null;
+  private westminster: HTMLAudioElement | null = null;
   constructor(enabled: boolean) {
     this.enabled = enabled;
   }
@@ -27,8 +30,12 @@ export class StationAudio {
       )
         return;
       this.bus.gain.setValueAtTime(1, context.currentTime);
-      if (this.active) return;
+      if (this.active) {
+        this.updateTrain();
+        return;
+      }
       this.active = true;
+      this.updateTrain();
       if (!this.loop) {
         const buffer = context.createBuffer(
             1,
@@ -99,6 +106,7 @@ export class StationAudio {
       this.context?.state !== "running"
     )
       return;
+    if (this.westminster && !this.westminster.paused) return;
     // First quarter of the public-domain Westminster melody: G# F# E B.
     [415.3, 370, 329.63, 246.94].forEach((note, i) =>
       this.bell(note, this.context!.currentTime + i * 0.65, 0.022, 2.6),
@@ -116,6 +124,49 @@ export class StationAudio {
       this.bell(note, this.context!.currentTime + i * 0.12, 0.06, 0.16),
     );
   }
+  /** Use one train loop for the fleet, rather than stacking a loop per train. */
+  setTrainsMoving(moving: boolean) {
+    this.moving = moving;
+    this.updateTrain();
+  }
+  private updateTrain() {
+    if (
+      !this.moving ||
+      !this.active ||
+      !this.enabled ||
+      this.disposed ||
+      document.hidden
+    ) {
+      this.train?.pause();
+      return;
+    }
+    try {
+      if (!this.train) {
+        this.train = new Audio("/audio/train-running.mp3");
+        this.train.loop = true;
+        this.train.volume = 0.2;
+      }
+      if (this.train.paused) void this.train.play().catch(() => {});
+    } catch {
+      /* Sound never blocks the simulation. */
+    }
+  }
+  announcement() {
+    if (!this.active || !this.enabled || this.disposed || document.hidden)
+      return;
+    try {
+      if (!this.westminster) {
+        this.westminster = new Audio("/audio/westminster-chimes.mp3");
+        this.westminster.volume = 0.4;
+      }
+      // Simultaneous fleet events share one chime instead of overlapping clips.
+      if (!this.westminster.paused) return;
+      this.westminster.currentTime = 0;
+      void this.westminster.play().catch(() => this.chime());
+    } catch {
+      this.chime();
+    }
+  }
   setEnabled(enabled: boolean) {
     this.enabled = enabled;
     if (!enabled) this.pause();
@@ -127,6 +178,9 @@ export class StationAudio {
   }
   private pause() {
     this.active = false;
+    this.train?.pause();
+    this.westminster?.pause();
+    if (this.westminster) this.westminster.currentTime = 0;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     if (this.context && this.bus) {
@@ -140,6 +194,12 @@ export class StationAudio {
     this.loop?.stop();
     this.loop?.disconnect();
     this.bus?.disconnect();
+    for (const clip of [this.train, this.westminster]) {
+      clip?.removeAttribute("src");
+      clip?.load();
+    }
+    this.train = null;
+    this.westminster = null;
     void this.context?.close().catch(() => {});
   }
 }

@@ -53,7 +53,7 @@ export const actionMessages: Record<CoreAction["type"], string> = {
   marketing: "Kampanye marketing diaktifkan.",
   mode: "Tempo permainan diperbarui.",
 };
-type Notice = { id: number; message: string; failed: boolean };
+type Notice = { id: number; message: string; failed: boolean; title?: string };
 export function useFeedback() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [sound, setSound] = useState(() => readPreference(SOUND_KEY) !== "off");
@@ -80,9 +80,14 @@ export function useFeedback() {
     };
   }, []);
   useEffect(() => audio.current?.setEnabled(sound), [sound]);
-  const notify = (message: string, failed = false, audible = true) => {
+  const notify = (
+    message: string,
+    failed = false,
+    audible = true,
+    title?: string,
+  ) => {
     const id = ++counter.current;
-    setNotices((items) => [...items.slice(-2), { id, message, failed }]);
+    setNotices((items) => [...items.slice(-2), { id, message, failed, title }]);
     if (audible) audio.current?.feedback(failed);
     if (!failed) {
       const timer = setTimeout(() => {
@@ -95,6 +100,12 @@ export function useFeedback() {
   return {
     notices,
     notify,
+    notifyJourney: (message: string, title: string) => {
+      notify(message, false, false, title);
+      audio.current?.announcement();
+    },
+    setTrainsMoving: (moving: boolean) =>
+      audio.current?.setTrainsMoving(moving),
     sound,
     toggleSound: () =>
       setSound((value) => {
@@ -120,9 +131,13 @@ export function Feedback({
           key={item.id}
           className={`feedback-toast ${item.failed ? "failed" : "succeeded"}`}
         >
-          {item.failed ? <AlertTriangle size={21} /> : <CheckCircle2 size={21} />}
+          {item.failed ? (
+            <AlertTriangle size={21} />
+          ) : (
+            <CheckCircle2 size={21} />
+          )}
           <div role={item.failed ? "alert" : "status"}>
-            <b>{item.failed ? "Tindakan gagal" : "Berhasil"}</b>
+            <b>{item.title ?? (item.failed ? "Tindakan gagal" : "Berhasil")}</b>
             <p>{item.message}</p>
           </div>
           <button

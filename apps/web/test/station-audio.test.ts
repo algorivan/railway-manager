@@ -1,6 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StationAudio } from "../src/core/station-audio";
 const contexts: FakeContext[] = [];
+const clips: FakeClip[] = [];
+class FakeClip {
+  paused = true;
+  loop = false;
+  volume = 1;
+  currentTime = 0;
+  constructor(public src: string) {
+    clips.push(this);
+  }
+  play = vi.fn(async () => {
+    this.paused = false;
+  });
+  pause = vi.fn(() => {
+    this.paused = true;
+  });
+  removeAttribute = vi.fn();
+  load = vi.fn();
+}
 class Node {
   connect = vi.fn();
   disconnect = vi.fn();
@@ -62,6 +80,8 @@ class FakeContext {
 }
 beforeEach(() => {
   contexts.length = 0;
+  clips.length = 0;
+  vi.stubGlobal("Audio", FakeClip);
   vi.useFakeTimers();
   vi.stubGlobal("AudioContext", FakeContext);
   vi.stubGlobal("document", { hidden: false });
@@ -152,5 +172,50 @@ describe("station sound lifecycle", () => {
     await Promise.resolve();
     expect(context.sources).toHaveLength(1);
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("uploaded journey audio", () => {
+  it("starts one train clip after a gesture, stops at dwell, and resumes without stacking", async () => {
+    const sound = new StationAudio(true);
+    sound.setTrainsMoving(true);
+    expect(clips).toHaveLength(0);
+    await sound.unlock();
+    expect(clips).toHaveLength(1);
+    expect(clips[0]!.src).toBe("/audio/train-running.mp3");
+    expect(clips[0]!.loop).toBe(true);
+    expect(clips[0]!.paused).toBe(false);
+    sound.setTrainsMoving(true);
+    expect(clips[0]!.play).toHaveBeenCalledOnce();
+    sound.setTrainsMoving(false);
+    expect(clips[0]!.paused).toBe(true);
+    sound.setTrainsMoving(true);
+    expect(clips).toHaveLength(1);
+    expect(clips[0]!.play).toHaveBeenCalledTimes(2);
+    sound.dispose();
+    expect(clips[0]!.removeAttribute).toHaveBeenCalledWith("src");
+  });
+  it("shares a Westminster clip for simultaneous notifications and obeys mute and visibility", async () => {
+    const sound = new StationAudio(true);
+    sound.announcement();
+    expect(clips).toHaveLength(0);
+    await sound.unlock();
+    sound.setTrainsMoving(true);
+    sound.announcement();
+    sound.announcement();
+    expect(clips).toHaveLength(2);
+    expect(clips[1]!.src).toBe("/audio/westminster-chimes.mp3");
+    expect(clips[1]!.play).toHaveBeenCalledOnce();
+    sound.setEnabled(false);
+    expect(clips.every((c) => c.paused)).toBe(true);
+    sound.announcement();
+    expect(clips[1]!.play).toHaveBeenCalledOnce();
+    sound.setEnabled(true);
+    await Promise.resolve();
+    expect(clips[0]!.paused).toBe(false);
+    (document as unknown as { hidden: boolean }).hidden = true;
+    sound.visibility();
+    expect(clips.every((c) => c.paused)).toBe(true);
+    sound.dispose();
   });
 });

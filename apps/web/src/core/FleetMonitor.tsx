@@ -5,7 +5,13 @@ import {
 } from "@railway/simulation";
 import { clock } from "./presentation";
 
-export function FleetMonitor({ state: s }: { state: CoreState }) {
+export function FleetMonitor({
+  state: s,
+  onDetails,
+}: {
+  state: CoreState;
+  onDetails: (id: string) => void;
+}) {
   return (
     <div className="fleet-monitor">
       <p className="muted">Posisi dan perjalanan langsung</p>
@@ -30,6 +36,9 @@ export function FleetMonitor({ state: s }: { state: CoreState }) {
                 ? `${Math.round(motion?.speedKmh ?? 0)} km/jam · tiba ~${clock(run.end)}`
                 : run?.reason || "Menunggu perjalanan"}
             </small>
+            <button className="monitor-details" onClick={() => onDetails(t.id)}>
+              Detail perjalanan
+            </button>
             {run && (
               <progress
                 max={Math.max(1, run.end - run.start)}

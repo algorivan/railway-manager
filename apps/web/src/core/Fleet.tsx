@@ -8,7 +8,9 @@ import {
   type CoreTrainset,
 } from "@railway/simulation";
 import { Asset, Card, type Act, type Screen } from "./presentation";
-import { CompactWorkspace, ScrollList, ResponsiveColumns } from "./Compact";
+import { CompactWorkspace, ResponsiveColumns } from "./Compact";
+import { FormationBuilder } from "./FormationBuilder";
+import { groupFormationUnits } from "./formation-draft";
 import { RunReport } from "./RunReport";
 import { Depot } from "./Depot";
 export function Fleet({
@@ -55,7 +57,7 @@ export function Fleet({
       {view === "depot" ? (
         <Depot state={s} act={act} />
       ) : editing ? (
-        <Formation
+        <FormationBuilder
           state={s}
           trainset={creating ? undefined : t}
           act={act}
@@ -98,28 +100,44 @@ export function Fleet({
                       {t.parked ? "Parkir depo" : "Siap penugasan"}
                     </p>
                     <div className="consist-art">
-                      {f.products.map((p, i) => (
-                        <Asset key={i} id={p.id} />
+                      {groupFormationUnits(f.units).map((group) => (
+                        <div className="consist-group" key={group.productId}>
+                          <Asset id={group.productId} />
+                          <b>×{group.unitIds.length}</b>
+                        </div>
                       ))}
                     </div>
-                    <div className="stats">
+                    <div
+                      className="formation-metrics"
+                      aria-label="Kapasitas trainset"
+                    >
                       <div>
-                        <strong>{f.cargoTons || f.capacity}</strong>
-                        <small>
-                          {f.cargoTons ? "Kapasitas kargo (t)" : "Kursi"}
-                        </small>
+                        <strong>{f.units.length}</strong>
+                        <small>Unit</small>
                       </div>
                       <div>
-                        <strong>{f.weight}</strong>
-                        <small>Berat (t)</small>
+                        <strong>{f.capacity}</strong>
+                        <small>Penumpang</small>
                       </div>
                       <div>
                         <strong>
-                          {Math.round(f.units.reduce((v, u) => v + u.fuel, 0))}
+                          {f.cargoTons}
+                          <em>t</em>
                         </strong>
-                        <small>Fuel onboard (L)</small>
+                        <small>Muatan</small>
+                      </div>
+                      <div>
+                        <strong>
+                          {Number(f.length.toFixed(1))}
+                          <em>m</em>
+                        </strong>
+                        <small>Panjang</small>
                       </div>
                     </div>
+                    <p className="muted">
+                      Berat {f.weight} t · Fuel onboard{" "}
+                      {Math.round(f.units.reduce((v, u) => v + u.fuel, 0))} L
+                    </p>
                     <div className="action-grid">
                       <button
                         disabled={!!run}
@@ -216,153 +234,6 @@ export function Fleet({
         </>
       )}
     </>
-  );
-}
-function Formation({
-  state: s,
-  trainset: t,
-  act,
-  close,
-}: {
-  state: CoreState;
-  trainset?: CoreTrainset;
-  act: Act;
-  close: () => void;
-}) {
-  const [name, setName] = useState(t?.name ?? "Trainset Nusantara"),
-    [location, setLocation] = useState(t?.location ?? s.hub),
-    [ids, setIds] = useState(t?.units ?? []);
-  const available = s.units.filter(
-      (u) =>
-        u.location === location &&
-        !u.job &&
-        !s.trainsets.some(
-          (other) => other.id !== t?.id && other.units.includes(u.id),
-        ),
-    ),
-    formation = coreFormation(s, {
-      id: t?.id ?? "draft",
-      name,
-      units: ids,
-      location,
-      readyAt: 0,
-      crew: false,
-      parked: true,
-    });
-  return (
-    <Card title={t ? "Edit formasi" : "Trainset baru"}>
-      <ResponsiveColumns>
-        <div>
-          <label>
-            Nama trainset
-            <input
-              aria-label="Nama trainset"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </label>
-          <label>
-            Lokasi depo
-            <select
-              value={location}
-              disabled={!!t}
-              onChange={(e) => {
-                setLocation(e.target.value);
-                setIds([]);
-              }}
-            >
-              {s.depots.map((d) => (
-                <option key={d.station} value={d.station}>
-                  {stationName(d.station)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <b>Inventori tersedia</b>
-          <div
-            className="inventory-grid formation-grid detail-scroll"
-            tabIndex={0}
-          >
-            {available.map((u) => (
-              <label key={u.id} className="formation-choice inventory-card">
-                <input
-                  type="checkbox"
-                  checked={ids.includes(u.id)}
-                  onChange={(e) =>
-                    setIds(
-                      e.target.checked
-                        ? [...ids, u.id]
-                        : ids.filter((id) => id !== u.id),
-                    )
-                  }
-                />
-                <Asset id={u.productId} />
-                <span>
-                  {coreProduct(u.productId).name} #{u.id.slice(-4)}
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
-        <div>
-          <h2>{name}</h2>
-          <p>
-            {ids.length} unit · {formation.capacity} kursi ·{" "}
-            {formation.cargoTons} ton muatan · {formation.length} m
-          </p>
-          <p className="muted">
-            Pilih lokomotif dahulu, kemudian kereta/gerbong. Formasi penumpang
-            memerlukan pembangkit yang cukup. Formasi kargo tidak boleh
-            bercampur kereta penumpang.
-          </p>
-          <ScrollList
-            items={ids}
-            render={(id, i) => (
-              <div key={id} className="list-row">
-                <b>
-                  {i + 1}.{" "}
-                  {
-                    coreProduct(s.units.find((u) => u.id === id)!.productId)
-                      .name
-                  }
-                </b>
-                <button
-                  disabled={!i}
-                  aria-label={`Naikkan unit ${i + 1}`}
-                  onClick={() => {
-                    const next = [...ids];
-                    [next[i - 1], next[i]] = [next[i]!, next[i - 1]!];
-                    setIds(next);
-                  }}
-                >
-                  ↑
-                </button>
-                <button onClick={() => setIds(ids.filter((x) => x !== id))}>
-                  Lepas
-                </button>
-              </div>
-            )}
-          />
-          <div className="toolbar">
-            <button onClick={close}>Kembali</button>
-            <button
-              className="primary"
-              onClick={() => {
-                if (
-                  act(
-                    { type: "formation", trainsetId: t?.id, name, units: ids },
-                    "Trainset disimpan. Aktifkan kru dan fuel, lalu atur jadwal.",
-                  )
-                )
-                  close();
-              }}
-            >
-              Simpan trainset
-            </button>
-          </div>
-        </div>
-      </ResponsiveColumns>
-    </Card>
   );
 }
 function Swap({

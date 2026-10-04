@@ -3263,3 +3263,418 @@
   line-height: 1.3;
   margin: 3px 0 5px;
 }
+
+/* Perakitan keeps the inventory and draft on one page, with only grids scrolling. */
+.dialog-body > .formation-builder {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+.formation-builder > h3 {
+  flex-shrink: 0;
+  margin-bottom: 8px;
+}
+.builder-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+.builder-fields {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.builder-fields label {
+  margin: 0;
+  min-width: 0;
+}
+.formation-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  flex-shrink: 0;
+}
+.formation-metrics > div {
+  padding: 8px 3px;
+  border-radius: 8px;
+  background: #eaf2ed;
+  text-align: center;
+  min-width: 0;
+}
+.formation-metrics strong {
+  display: block;
+  font-size: clamp(23px, 2.2vw, 32px);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: #244f49;
+}
+.formation-metrics small {
+  display: block;
+  font-size: 10px;
+  margin-top: 4px;
+  color: var(--muted);
+}
+.formation-metrics em {
+  font-size: 12px;
+  font-style: normal;
+  margin-left: 2px;
+}
+.builder-zones {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+.builder-zone {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px dashed #88aaa0;
+  border-radius: 9px;
+  overflow: hidden;
+  background: #f5f8f5;
+}
+.builder-zone header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 8px;
+  flex-shrink: 0;
+  background: #eaf2ed;
+}
+.builder-zone header b {
+  font-size: 12px;
+}
+.builder-zone header small {
+  font-size: 9px;
+  color: var(--muted);
+}
+.builder-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: max-content;
+  gap: 6px;
+  align-content: start;
+  padding: 7px;
+  flex: 1;
+  min-height: 0;
+}
+.core-game .builder-unit {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 8px 6px;
+  min-height: 94px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--ink);
+  text-align: center;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.builder-unit .vehicle-art {
+  width: 100%;
+  height: 34px;
+  margin: 8px 0 0;
+  object-fit: contain;
+  pointer-events: none;
+}
+.builder-unit b {
+  font-size: 10px;
+  line-height: 1.2;
+}
+.builder-unit small {
+  font-size: 8px;
+  color: var(--muted);
+}
+.unit-multiplier {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  padding: 1px 5px;
+  background: #244f49;
+  color: white;
+  border-radius: 6px;
+  font-weight: 800;
+  font-size: 15px;
+  line-height: 1.2;
+}
+.core-game .builder-unit.lifted {
+  opacity: 0.55;
+  border: 2px solid #ea7628;
+}
+.core-game .builder-unit.drop-over,
+.builder-zone.drop-over {
+  border: 2px solid #ea7628;
+  background: #fff2df;
+}
+.builder-grid:focus-visible,
+.core-game .builder-unit:focus-visible {
+  outline: 2px solid #ea7628;
+  outline-offset: -2px;
+}
+.builder-empty {
+  grid-column: 1 / -1;
+  align-self: center;
+  text-align: center;
+  color: var(--muted);
+  padding: 14px 4px;
+  font-size: 11px;
+  pointer-events: none;
+}
+.builder-footer {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.builder-footer > small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.builder-footer > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.builder-footer button {
+  min-height: 34px;
+}
+.builder-drag-ghost {
+  position: fixed;
+  z-index: 2000;
+  max-width: 170px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #fffdf3;
+  box-shadow: 0 5px 20px #0004;
+  border: 2px solid #ea7628;
+  pointer-events: none;
+}
+.builder-drag-ghost .vehicle-art {
+  width: 120px;
+  height: 35px;
+  object-fit: contain;
+}
+.builder-drag-ghost b {
+  display: block;
+  font-size: 10px;
+}
+.consist-group {
+  position: relative;
+  flex: 0 0 100px;
+  padding-bottom: 12px;
+}
+.fleet-readiness .consist-group img {
+  width: 100%;
+  height: 45px;
+}
+.consist-group > b {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  border-radius: 6px;
+  background: #244f49;
+  color: white;
+  padding: 1px 5px;
+  font-size: 14px;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+@media (max-width: 700px), (max-height: 760px) {
+  .builder-content {
+    gap: 6px;
+  }
+  .builder-zone header {
+    padding: 5px 6px;
+  }
+  .builder-grid {
+    padding: 5px;
+    gap: 5px;
+  }
+  .core-game .builder-unit {
+    min-height: 84px;
+    padding: 6px 4px;
+  }
+  .builder-unit .vehicle-art {
+    height: 27px;
+  }
+  .builder-unit small {
+    font-size: 7px;
+  }
+  .builder-footer > small {
+    font-size: 9px;
+  }
+}
+
+.core-consist-marker {
+  background: transparent;
+  border: 0;
+}
+.map-consist-unit {
+  display: block;
+  object-fit: fill;
+  transform-origin: center;
+  filter: drop-shadow(0 1px 2px #0008);
+  user-select: none;
+}
+.core-consist-marker.locomotive .map-consist-unit {
+  filter: drop-shadow(0 0 3px #ff9922) drop-shadow(0 1px 2px #0008);
+}
+.station-picking .core-consist-marker {
+  pointer-events: none;
+}
+
+.train-map-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 240px;
+  white-space: normal;
+}
+.train-map-label {
+  font-size: 11px;
+  line-height: 1.45;
+}
+.train-map-summary .map-train-details {
+  padding: 5px 8px;
+  background: #244f49;
+  color: white;
+  border: 0;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.train-map-tooltip {
+  pointer-events: auto;
+}
+.camera-follow {
+  position: absolute;
+  z-index: 610;
+  top: 104px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fffdf7;
+  box-shadow: 0 2px 8px #0002;
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-size: 11px;
+}
+.camera-follow b {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.camera-follow button {
+  padding: 5px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.train-journey-details {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 10px;
+  gap: 8px;
+  overflow: hidden;
+}
+.journey-back {
+  flex-shrink: 0;
+  align-self: flex-start;
+  font-size: 11px;
+}
+.journey-detail-scroll {
+  flex: 1;
+  min-height: 0;
+  padding-right: 3px;
+}
+.journey-detail-scroll h2 {
+  margin: 0 0 8px;
+  font-size: 17px;
+}
+.journey-consist {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.journey-consist > div {
+  min-width: 0;
+  position: relative;
+  background: #f0f5f0;
+  padding: 4px;
+  border-radius: 5px;
+}
+.journey-consist .vehicle-art {
+  width: 100%;
+  height: 38px;
+  object-fit: contain;
+}
+.journey-consist b {
+  display: block;
+  text-align: right;
+  font-size: 13px;
+}
+.journey-detail-scroll .formation-metrics strong {
+  font-size: 18px;
+}
+.journey-detail-scroll .formation-metrics em {
+  font-size: 9px;
+}
+.journey-detail-scroll .formation-metrics small {
+  font-size: 8px;
+}
+.journey-detail-scroll .run-report .stats {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.journey-detail-scroll .run-report .list-row {
+  flex-wrap: wrap;
+}
+.journey-detail-scroll .run-report p {
+  font-size: 11px;
+  line-height: 1.5;
+}
+.core-game .monitor-details {
+  padding: 4px 7px;
+  margin-top: 6px;
+  font-size: 10px;
+  min-height: 26px;
+}
+@media (max-width: 700px) {
+  .camera-follow {
+    top: auto;
+    bottom: 20px;
+    left: 10px;
+    transform: none;
+    max-width: calc(100% - 80px);
+  }
+  .camera-follow b {
+    max-width: 140px;
+  }
+}

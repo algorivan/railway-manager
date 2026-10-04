@@ -8,35 +8,56 @@ import {
   JAVA_STATION_CATALOG,
   operatingTrackAccessible,
   operatingTrackGeometry,
-  pointAlongRail,
+  type RailPoint,
 } from "@railway/game-data";
 import {
   type CoreState,
   stationName,
   coreRunMotion,
   coreFormation,
+  coreProduct,
 } from "@railway/simulation";
+
+import { railConsistLayout, travelledRail } from "./rail-consist";
 
 export function CoreMap({
   state,
   picking,
   onPick,
+  onTrainDetails,
 }: {
   state: CoreState;
   picking?: "origin" | "destination";
   onPick: (station: string) => void;
+  onTrainDetails: (trainsetId: string) => void;
 }) {
   const pickRef = useRef(onPick),
     pickingRef = useRef(picking),
-    stateRef = useRef(state);
+    stateRef = useRef(state),
+    detailsRef = useRef(onTrainDetails);
   pickRef.current = onPick;
   pickingRef.current = picking;
   stateRef.current = state;
+  detailsRef.current = onTrainDetails;
   const element = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const railLayer = useRef<L.LayerGroup | null>(null);
   const trainLayer = useRef<L.LayerGroup | null>(null);
   const stationMarkers = useRef<{ id: string; marker: L.CircleMarker }[]>([]);
+  const [following, setFollowing] = useState<string | null>(null);
+  const followingRef = useRef(following);
+  followingRef.current = following;
+  const trainMarkers = useRef(
+    new Map<
+      string,
+      {
+        marker: L.Marker;
+        size: string;
+        tooltip: HTMLElement;
+        popup: HTMLElement;
+      }
+    >(),
+  );
   const [serviceId, setServiceId] = useState("");
   const [mapQuery, setMapQuery] = useState("");
   const [mapPopupOpen, setMapPopupOpen] = useState(false);
@@ -100,6 +121,7 @@ export function CoreMap({
       railLayer.current = null;
       trainLayer.current = null;
       stationMarkers.current = [];
+      trainMarkers.current.clear();
     };
   }, []);
   useEffect(() => {
@@ -283,31 +305,179 @@ export function CoreMap({
       ?.marker.bringToFront();
   }, [accessKey, state.hub, routeKey]);
   useEffect(() => {
-    const group = trainLayer.current;
-    if (!group) return;
-    group.clearLayers();
-    for (const run of state.runs.filter((r) => r.status === "running")) {
-      const leg = run.legs[run.leg];
-      if (!leg) continue;
-      const movement = coreRunMotion(run, state.minute);
-      const fraction = movement.fraction;
-      const points = operatingTrackGeometry(leg.segmentId, leg.from);
-      if (!points.length) continue;
-      const tooltip = document.createElement("span");
-      tooltip.textContent = `${run.name} · ${run.phase === "dwell" ? "Berhenti" : `${movement.speedKmh.toFixed(0)} km/h · ${movement.phase}`}`;
-      L.marker(pointAlongRail(points, fraction), {
-        icon: L.divIcon({
-          className: "core-train-marker",
-          html: "🚆",
-          iconSize: [32, 32],
-        }),
-      })
-        .bindTooltip(tooltip)
-        .addTo(group);
-    }
-  }, [state.minute, state.runs]);
+    const group = trainLayer.current,
+      m = map.current;
+    if (!group || !m) return;
+    const render = () => {
+      const active = new Set<string>();
+      let followed = false;
+      for (const run of state.runs.filter((r) => r.status === "running")) {
+        const leg = run.legs[run.leg];
+        if (!leg) continue;
+        const movement = coreRunMotion(run, state.minute),
+          points = operatingTrackGeometry(leg.segmentId, leg.from);
+        if (!points.length) continue;
+        const train = state.trainsets.find((t) => t.id === run.trainsetId);
+        // The run's actual unit snapshot also covers cargo and recall journeys.
+        const products = run.unitIds.flatMap((id) => {
+          const unit = state.units.find((u) => u.id === id);
+          return unit ? [coreProduct(unit.productId)] : [];
+        });
+        // Render the locomotive at the head even for older saves with unordered units.
+        const ordered = [
+          ...products.filter((p) => p.kind === "loco"),
+          ...products.filter((p) => p.kind !== "loco"),
+        ];
+        const trail: RailPoint[] = run.legs
+          .slice(0, run.leg)
+          .flatMap((l) => operatingTrackGeometry(l.segmentId, l.from));
+        trail.push(...travelledRail(points, movement.fraction));
+        const pixels = trail.map((p) => m.latLngToLayerPoint(p));
+        const a = m.latLngToLayerPoint(points[0]!),
+          b = m.latLngToLayerPoint(points[1] ?? points[0]!);
+        const scale = Math.min(
+          1.35,
+          Math.max(0.65, 0.65 + (m.getZoom() - 8) * 0.12),
+        );
+        const layout = railConsistLayout(
+          pixels,
+          ordered.map((p) => p.length),
+          scale,
+          { x: b.x - a.x, y: b.y - a.y },
+        );
+        ordered.forEach((product, index) => {
+          const position = layout[index]!;
+          const key = `${run.id}:${index}`,
+            size = `${position.width}:${scale}`;
+          active.add(key);
+          const label = `${train?.name ?? run.name} · ${ordered.length} unit · ${products.reduce((sum, p) => sum + p.length, 0).toFixed(1)} m · ${run.phase === "dwell" ? "Berhenti" : `${movement.speedKmh.toFixed(0)} km/j`} · ${stationName(run.origin)} → ${stationName(run.destination)}`;
+          const location = m.layerPointToLatLng(
+            L.point(position.x, position.y),
+          );
+          let entry = trainMarkers.current.get(key);
+          const icon = () => {
+            const art = document.createElement("img");
+            art.src = `/vehicles/${product.asset}.${product.kind === "cargo" ? "svg" : "webp"}`;
+            art.alt = product.name;
+            art.className = "map-consist-unit";
+            art.draggable = false;
+            art.style.width = `${position.width}px`;
+            art.style.height = `${Math.max(10, 14 * scale)}px`;
+            return L.divIcon({
+              className: `core-consist-marker ${product.kind === "loco" ? "locomotive" : ""}`,
+              html: art,
+              iconSize: [position.width, Math.max(10, 14 * scale)],
+              iconAnchor: [position.width / 2, Math.max(10, 14 * scale) / 2],
+            });
+          };
+          if (!entry) {
+            const content = () => {
+              const root = document.createElement("div"),
+                summary = document.createElement("b"),
+                details = document.createElement("button");
+              root.className = "train-map-summary";
+              summary.className = "train-map-label";
+              details.textContent = "Detail perjalanan";
+              details.className = "map-train-details";
+              details.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                detailsRef.current(run.trainsetId);
+                m.closePopup();
+              });
+              root.append(summary, details);
+              return root;
+            };
+            const tooltip = content(),
+              popup = content();
+            const marker = L.marker(location, {
+              icon: icon(),
+              keyboard: true,
+              title: `${train?.name ?? run.name}: unit ${index + 1} dari ${ordered.length}`,
+            })
+              .bindTooltip(tooltip, {
+                interactive: true,
+                direction: "top",
+                className: "train-map-tooltip",
+              })
+              .bindPopup(popup, { autoPan: false });
+            marker.on("click", () => {
+              if (pickingRef.current) return;
+              followingRef.current = run.trainsetId;
+              setFollowing(run.trainsetId);
+              const current = stateRef.current,
+                activeRun = current.runs.find(
+                  (r) =>
+                    r.trainsetId === run.trainsetId && r.status === "running",
+                );
+              const activeLeg = activeRun?.legs[activeRun.leg];
+              if (activeRun && activeLeg) {
+                const line = operatingTrackGeometry(
+                    activeLeg.segmentId,
+                    activeLeg.from,
+                  ),
+                  head = travelledRail(
+                    line,
+                    coreRunMotion(activeRun, current.minute).fraction,
+                  ).at(-1);
+                if (head)
+                  m.setView(head, Math.max(11, m.getZoom()), {
+                    animate: false,
+                  });
+              }
+              marker.openPopup();
+            });
+            marker.addTo(group);
+            entry = { marker, size, tooltip, popup };
+            trainMarkers.current.set(key, entry);
+          } else {
+            entry.marker.setLatLng(location);
+            if (entry.size !== size) {
+              entry.marker.setIcon(icon());
+              entry.size = size;
+            }
+          }
+          for (const root of [entry.tooltip, entry.popup])
+            root.querySelector<HTMLElement>(".train-map-label")!.textContent =
+              label;
+          const art = entry.marker
+            .getElement()
+            ?.querySelector<HTMLImageElement>("img");
+          if (art)
+            art.style.transform = `rotate(${position.angle}deg) scaleY(${Math.cos((position.angle * Math.PI) / 180) < 0 ? -1 : 1})`;
+          if (index === 0 && followingRef.current === run.trainsetId) {
+            followed = true;
+            m.panTo(location, { animate: false });
+          }
+        });
+      }
+      for (const [key, entry] of trainMarkers.current)
+        if (!active.has(key)) {
+          group.removeLayer(entry.marker);
+          trainMarkers.current.delete(key);
+        }
+      if (followingRef.current && !followed) {
+        followingRef.current = null;
+        setFollowing(null);
+      }
+    };
+    render();
+    m.on("zoomend", render);
+    return () => {
+      m.off("zoomend", render);
+    };
+  }, [state.minute, state.runs, state.units, state.trainsets]);
+  useEffect(() => {
+    if (following) map.current?.dragging.disable();
+    else map.current?.dragging.enable();
+    return () => {
+      map.current?.dragging.enable();
+    };
+  }, [following]);
   useEffect(() => {
     if (!picking || !map.current) return;
+    setFollowing(null);
+    followingRef.current = null;
     map.current.closePopup();
     const points = stations
       .filter((s) => s.connected)
@@ -343,6 +513,8 @@ export function CoreMap({
     setMapQuery("");
   };
   const focus = () => {
+    followingRef.current = null;
+    setFollowing(null);
     const points = selected
       ? selected.segments.flatMap((id) => operatingTrackGeometry(id))
       : stations
@@ -397,6 +569,23 @@ export function CoreMap({
             </div>
           )}
         </section>
+      )}
+      {following && !picking && (
+        <div className="camera-follow" role="status">
+          <b>
+            Mengikuti{" "}
+            {state.trainsets.find((t) => t.id === following)?.name ?? "kereta"}
+          </b>
+          <button
+            onClick={() => {
+              followingRef.current = null;
+              setFollowing(null);
+              map.current?.closePopup();
+            }}
+          >
+            Lepas kamera
+          </button>
+        </div>
       )}
       <section
         hidden={!!picking}

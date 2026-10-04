@@ -43,8 +43,10 @@ import {
   readPreference,
   writePreference,
 } from "./feedback";
+import { journeyEvents } from "./journey-events";
 import { CompanySetup } from "./CompanySetup";
 import { FleetMonitor } from "./FleetMonitor";
+import { TrainJourneyDetails } from "./TrainJourneyDetails";
 import { GameHeader } from "./GameHeader";
 import { ManagementDialog } from "./Compact";
 import { NetworkManagement } from "./NetworkManagement";
@@ -90,6 +92,7 @@ export default function CoreGame() {
     readPreference(TUTORIAL_KEY) ? "fleet" : "tutorial",
   );
   const [open, setOpen] = useState(true);
+  const [detailTrainsetId, setDetailTrainsetId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(
     () => !readPreference(TUTORIAL_KEY),
   );
@@ -147,11 +150,34 @@ export default function CoreGame() {
       release();
     };
   }, []);
+  const notifyJourneys = (before: CoreState, next: CoreState) => {
+    const events = journeyEvents(before, next);
+    const recent = events.slice(-3);
+    for (const event of recent) {
+      const run = event.run;
+      const name =
+        next.trainsets.find((t) => t.id === run.trainsetId)?.name ?? run.name;
+      feedback.notifyJourney(
+        event.kind === "departure"
+          ? `${name} berangkat dari ${stationName(run.origin)} menuju ${stationName(run.destination)} · ${clock(event.minute)}.`
+          : `${name} telah tiba di ${stationName(run.destination)} · ${clock(event.minute)}.`,
+        event.kind === "departure" ? "Kereta diberangkatkan" : "Kereta tiba",
+      );
+    }
+  };
+  useEffect(() => {
+    feedback.setTrainsMoving(
+      state.runs.some(
+        (run) => run.status === "running" && run.phase === "move",
+      ),
+    );
+  }, [state.runs]);
   useEffect(() => {
     const timer = setInterval(() => {
       try {
         const before = stateRef.current;
         const next = catchUpCore(before, Date.now());
+        notifyJourneys(before, next);
         const earnedXP =
           (next.progression?.xp ?? 0) - (before.progression?.xp ?? 0);
         if (earnedXP > 0) {
@@ -222,6 +248,7 @@ export default function CoreGame() {
       const before = stateRef.current;
       const beforeXP = before.progression?.xp ?? 0;
       const next = applyCoreAction(stateRef.current, action, id, now);
+      notifyJourneys(before, next);
       stateRef.current = next;
       setState(next);
       const earnedXP = (next.progression?.xp ?? 0) - beforeXP;
@@ -319,6 +346,10 @@ export default function CoreGame() {
           state={state}
           picking={mapPicking?.target}
           onPick={(station) => mapPicking?.onSelect(station)}
+          onTrainDetails={(trainsetId) => {
+            setDetailTrainsetId(trainsetId);
+            setOpen(true);
+          }}
         />
       </Suspense>
       <GameHeader state={state} />
@@ -334,7 +365,9 @@ export default function CoreGame() {
         <div className="panel-heading">
           <div>
             <small>PANTAU PERJALANAN</small>
-            <h1>Armada langsung</h1>
+            <h1>
+              {detailTrainsetId ? "Detail perjalanan" : "Armada langsung"}
+            </h1>
           </div>
           <button
             className="icon-button"
@@ -344,7 +377,15 @@ export default function CoreGame() {
             <ChevronLeft size={20} />
           </button>
         </div>
-        <FleetMonitor state={state} />
+        {detailTrainsetId ? (
+          <TrainJourneyDetails
+            state={state}
+            trainsetId={detailTrainsetId}
+            back={() => setDetailTrainsetId(null)}
+          />
+        ) : (
+          <FleetMonitor state={state} onDetails={setDetailTrainsetId} />
+        )}
       </aside>
       {modalOpen && (
         <ManagementDialog
