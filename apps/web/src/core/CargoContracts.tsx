@@ -1,8 +1,13 @@
 import { useState } from "react";
-import { CORE_CARGO_OFFERS, CORE_OPERATING_TRACKS } from "@railway/game-data";
+import {
+  CORE_CARGO_OFFERS,
+  CORE_OPERATING_TRACKS,
+  coreCargoInvestmentBudget,
+} from "@railway/game-data";
 import { findCorePath, type CoreState } from "@railway/simulation";
 import { compact, money, when, type Act, type Screen } from "./presentation";
-import { ScrollList, ResponsiveColumns } from "./Compact";
+import { Fuel, Pickaxe, Container } from "lucide-react";
+const icons = { oil: Fuel, mineral: Pickaxe, logistics: Container };
 export function CargoContracts({
   state: s,
   act,
@@ -16,6 +21,7 @@ export function CargoContracts({
       useState<(typeof CORE_CARGO_OFFERS)[number]["id"]>("oil"),
     [rid, setRid] = useState(s.services[0]?.id ?? "");
   const offer = CORE_CARGO_OFFERS.find((o) => o.id === offerId)!,
+    budget = coreCargoInvestmentBudget(offerId),
     active = s.cargoContracts?.find((c) => c.status === "active"),
     relation = s.services.find((r) => r.id === rid);
   let km = 0;
@@ -32,27 +38,79 @@ export function CargoContracts({
         0,
       );
   } catch {}
+  const used = s.cargoContracts?.some((c) => c.offerId === offerId),
+    busy =
+      relation &&
+      (s.plans.some((p) => p.active && p.serviceId === rid) ||
+        s.runs.some(
+          (r) =>
+            r.serviceId === rid &&
+            ["running", "held", "stopped"].includes(r.status),
+        ));
+  const blocked = active
+    ? "Selesaikan kontrak aktif terlebih dahulu."
+    : used
+      ? "Investasi penawaran ini sudah pernah diterima."
+      : !relation
+        ? "Pilih relasi kargo atau buat di Jadwal."
+        : busy
+          ? "Pilih relasi tanpa jadwal/perjalanan aktif."
+          : km < 25
+            ? "Relasi kargo memerlukan sedikitnya 25 km."
+            : "Dana masuk saat diterima. Relasi menjadi khusus kargo.";
   return (
-    <ResponsiveColumns labels={["Penawaran", "Progres & panduan"]}>
-      <div>
-        <label>
-          Penawaran industri
-          <select
-            value={offerId}
-            onChange={(e) => setOffer(e.target.value as typeof offerId)}
-          >
-            {CORE_CARGO_OFFERS.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <h2>{compact(offer.investment)}</h2>
-        <p>
-          Investasi sarana saat kontrak diterima. {offer.trips} pengiriman A→B
-          dalam {offer.days} hari game; bonus selesai {compact(offer.bonus)}.
-        </p>
+    <div className="cargo-funding-workspace">
+      <div
+        className="cargo-offer-cards"
+        role="group"
+        aria-label="Penawaran investasi industri"
+      >
+        {CORE_CARGO_OFFERS.map((o) => {
+          const Icon = icons[o.id];
+          return (
+            <button
+              key={o.id}
+              aria-pressed={offerId === o.id}
+              onClick={() => setOffer(o.id)}
+            >
+              <Icon size={18} />
+              <b>{o.name}</b>
+              <strong>{compact(o.investment)}</strong>
+            </button>
+          );
+        })}
+      </div>
+      <div className="cargo-funding-scroll detail-scroll">
+        <section
+          className="cargo-investment-hero"
+          aria-label="Modal investasi di muka"
+        >
+          <small>MODAL DI MUKA</small>
+          <strong>{compact(offer.investment)}</strong>
+          <span>
+            {offer.trips} pengiriman · {offer.days} hari game · bonus{" "}
+            {compact(offer.bonus)}
+          </span>
+        </section>
+        <section
+          className="cargo-budget"
+          aria-label="Rencana penggunaan investasi"
+        >
+          <b>Contoh modal: {budget.trainsets} trainset kargo 80 t</b>
+          <div>
+            <span>{budget.trainsets} × CC201 + 2 gerbong</span>
+            <strong>{compact(budget.fleetCost)}</strong>
+          </div>
+          <div>
+            <span>Cadangan operasional</span>
+            <strong>{compact(budget.reserve)}</strong>
+          </div>
+          <div className="budget-surplus">
+            <span>Sisa untuk lintas & pengembangan</span>
+            <strong>{compact(budget.networkBudget)}</strong>
+          </div>
+          <small>Alokasi contoh; beli sarana dan simpan jadwal sendiri.</small>
+        </section>
         <label>
           Relasi khusus kargo
           <select
@@ -68,79 +126,82 @@ export function CargoContracts({
             ))}
           </select>
         </label>
-        <p>
-          {money(offer.paymentPerTonKm)}/ton-km · contoh 80 ton:{" "}
-          {compact(80 * km * offer.paymentPerTonKm)} per pengiriman.
+        <p className="cargo-rate">
+          {money(offer.paymentPerTonKm)}/ton-km · contoh 80 t:{" "}
+          <b>{compact(80 * km * offer.paymentPerTonKm)}</b>/pengiriman
         </p>
-        <button
-          className="primary"
-          disabled={
-            !relation ||
-            !!active ||
-            s.cargoContracts?.some((c) => c.offerId === offerId)
-          }
-          onClick={() =>
-            act(
-              { type: "cargoContract", offerId, serviceId: rid },
-              "Investasi diterima. Beli gerbong sesuai kontrak, rakit trainset kargo, lalu simpan jadwal PP.",
-            )
-          }
-        >
-          Terima kontrak & investasi
-        </button>
-        <p className="muted">
-          Relasi ini menjadi khusus kargo, berhenti hanya di terminal. Relasi
-          dengan jadwal atau perjalanan aktif tidak dapat dialihkan. Setiap
-          penawaran investasi hanya sekali.
-        </p>
-      </div>
-      <div>
-        <b>Alur kontrak</b>
-        <ol>
-          <li>Buat relasi minimal 25 km di Jadwal.</li>
-          <li>Terima investasi, beli lokomotif dan ≥2 gerbong sejenis.</li>
-          <li>Rakit trainset kargo di Armada, rekrut kru.</li>
-          <li>Simpan jadwal PP: A→B berisi muatan, B→A kosong.</li>
-        </ol>
+        <div className="cargo-steps">
+          <span>1 · Terima investasi</span>
+          <span>2 · Beli & rakit</span>
+          <span>3 · Kru & jadwal PP</span>
+        </div>
         <div className="toolbar">
           <button onClick={() => go("market")}>Beli sarana</button>
           <button onClick={() => go("fleet")}>Rakit trainset</button>
-          <button onClick={() => go("schedule")}>Atur jadwal</button>
+          <button onClick={() => go("schedule")}>Buat relasi / jadwal</button>
         </div>
-        <p className="muted">
-          Pembayaran setelah tiba sebelum deadline. Recall atau terlambat tidak
-          dibayar. Penalti maksimal 10% investasi, proporsional sisa target.
-          Jadwal pengiriman berhenti saat kontrak selesai/kedaluwarsa;
-          perjalanan balik tetap tersedia.
+        <p className="muted cargo-terms">
+          Bayaran setelah tiba tepat waktu; balik kosong. Penalti maksimal 10%
+          modal kontrak sesuai sisa target. Setiap penawaran investasi hanya
+          sekali.
         </p>
-        <ScrollList
-          items={[...(s.cargoContracts ?? [])].reverse()}
-          render={(c) => (
-            <article className="contract-progress" key={c.id}>
-              <b>
-                {CORE_CARGO_OFFERS.find((o) => o.id === c.offerId)!.name} ·{" "}
-                {s.services.find((r) => r.id === c.serviceId)?.name}
-              </b>
-              <p>
-                {c.delivered}/{c.target} pengiriman ·{" "}
-                {c.status === "active"
-                  ? "Aktif"
-                  : c.status === "completed"
-                    ? "Selesai"
-                    : "Kedaluwarsa"}
-              </p>
-              <progress
-                value={c.delivered}
-                max={c.target}
-                aria-label="Progres kontrak"
-              />
-              <small>
-                Batas: {when(c.deadline)} · investasi {compact(c.investment)}
-              </small>
-            </article>
-          )}
-        />
+        {(s.cargoContracts?.length ?? 0) > 0 && (
+          <section className="cargo-existing" aria-label="Kontrak diterima">
+            <b>Kontrak Anda</b>
+            {[...(s.cargoContracts ?? [])].reverse().map((c) => {
+              const extra =
+                s.ledger.find((e) => e.id === `cargo-expansion:${c.id}`)
+                  ?.cash ?? 0;
+              return (
+                <article className="contract-progress" key={c.id}>
+                  <b>
+                    {CORE_CARGO_OFFERS.find((o) => o.id === c.offerId)!.name} ·{" "}
+                    {s.services.find((r) => r.id === c.serviceId)?.name}
+                  </b>
+                  <span>
+                    {c.delivered}/{c.target} pengiriman ·{" "}
+                    {c.status === "active"
+                      ? "Aktif"
+                      : c.status === "completed"
+                        ? "Selesai"
+                        : "Kedaluwarsa"}
+                  </span>
+                  <progress
+                    value={c.delivered}
+                    max={c.target}
+                    aria-label="Progres kontrak"
+                  />
+                  <small>
+                    Batas {when(c.deadline)} · total modal{" "}
+                    {compact(c.investment + extra)}
+                  </small>
+                  {extra > 0 && (
+                    <small>
+                      Tambahan ekspansi {compact(extra)} · syarat kontrak awal
+                      tetap.
+                    </small>
+                  )}
+                </article>
+              );
+            })}
+          </section>
+        )}
       </div>
-    </ResponsiveColumns>
+      <footer className="cargo-funding-footer">
+        <small>{blocked}</small>
+        <button
+          className="primary"
+          disabled={!relation || !!active || !!used || !!busy || km < 25}
+          onClick={() =>
+            act(
+              { type: "cargoContract", offerId, serviceId: rid },
+              "Investasi masuk. Modal cukup untuk beberapa trainset kargo dan pengembangan lintas; beli sarana lalu simpan jadwal PP.",
+            )
+          }
+        >
+          Terima kontrak · +{compact(offer.investment)}
+        </button>
+      </footer>
+    </div>
   );
 }

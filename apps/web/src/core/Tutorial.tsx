@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CORE_ONBOARDING_MISSIONS } from "@railway/game-data";
 import {
   coreMissionStatus,
   coreLevel,
@@ -10,7 +11,7 @@ const cues: Record<string, string> = {
   company: "Pilih kota depo → hub.",
   orders: "1 CC201 + 4 Ekonomi Standar + 1 pembangkit → checkout.",
   accept: "Terima pesanan yang siap.",
-  formation: "Pilih 6 unit → simpan trainset.",
+  formation: "Rakit 6 unit → simpan. Hadiah jadi modal armada berikutnya.",
   crew: "Rekrut otomatis.",
   fuel: "Beli fuel → isi tangki trainset.",
   service: "Pilih asal & tujuan → simpan relasi.",
@@ -48,7 +49,11 @@ export function Tutorial({
           Level {level.level} · {level.xp} XP
         </b>
         <span>
-          {completed}/{missions.length} ✓
+          {completed}/{missions.length} ✓ ·{" "}
+          {compact(
+            CORE_ONBOARDING_MISSIONS.reduce((sum, m) => sum + m.cash, 0),
+          )}{" "}
+          hadiah
         </span>
       </div>
       <div

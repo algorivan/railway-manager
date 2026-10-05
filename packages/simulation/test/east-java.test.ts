@@ -39,7 +39,9 @@ describe("eastern Java services", () => {
     expect(restoreCore(serializeCore(s)).services).toEqual(s.services);
     expect(s.access.some((id) => id === "SEG_JR_BWI")).toBe(false);
     expect(EAST_JAVA_CORRIDORS.every((track) => !track.provenance.verified)).toBe(true);
-    expect(() => applyCoreAction(s, { type: "access", segmentId: "SEG_BG_PB" }, "too-early", epoch)).toThrow("PP");
+    const earlyExpansion = applyCoreAction(s, { type: "access", segmentId: "SEG_BG_PB" }, "early-expansion", epoch);
+    expect(earlyExpansion.access).toContain("SEG_BG_PB");
+    expect(earlyExpansion.runs).toHaveLength(0);
     s = applyCoreAction(s, { type: "crew", trainsetId: s.trainsets[0]!.id }, "crew", epoch);
     s = applyCoreAction(s, { type: "fuel", station: s.hub, liters: 16000, bucket: fuelQuote(epoch).bucket }, "fuel", epoch);
     s = applyCoreAction(s, { type: "fill", trainsetId: s.trainsets[0]!.id }, "fill", epoch);

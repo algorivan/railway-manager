@@ -37,7 +37,7 @@ New browser games must choose a depot city, see its provisional contract cost, s
 
 The nine missions are the onboarding itself: each includes instructions and a link to the relevant menu, with a return-to-tutorial button in the operations panel. There is no second tutorial checklist. Company setup is mission 1. Startup, lazy-loaded menus/map, basemap tiles, checkpoint imports and save-lock acquisition expose loading/status feedback; synchronous actions retain immediate success/failure notifications.
 
-Nine one-time missions award 460 XP and Rp590 million in total, including Rp100 million/40 XP for company creation and Rp150 million/100 XP for the first completed passenger service. Level advances every 100 XP. Cash is posted as a mission gift with zero passenger revenue, preserving contribution accounting. Rewards are automatic for eligible milestones in opted-in saves; claims, ledger IDs and XP survive reload and catch-up. No XP is awarded for opening menus. Level does not override route, fuel or safety requirements.
+Nine one-time missions award 460 XP and Rp9.9 billion in total, including Rp2 billion/40 XP for company creation and Rp2 billion/100 XP for the first completed passenger service. Level advances every 100 XP. Cash is posted as a mission gift with zero passenger revenue, preserving contribution accounting. Rewards are automatic for eligible milestones in opted-in saves; claims, ledger IDs and XP survive reload and catch-up. No XP is awarded for opening menus. Level does not override route, fuel or safety requirements.
 
 ## Checks
 

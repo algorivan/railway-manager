@@ -51,7 +51,7 @@ describe("company setup and mission rewards", () => {
     const draft = createCompanyDraft(now),
       s = found();
     const cost = CORE_DEPOT_CITIES.find((c) => c.id === "bandung")!.cost;
-    expect(s.cash).toBe(draft.cash - cost + 100_000_000);
+    expect(s.cash).toBe(draft.cash - cost + 2_000_000_000);
     expect(s.depots[0]!.station).toBe(s.hub);
     expect(s.depots[0]!.contractCost).toBe(cost);
     expect(s.progression).toEqual({ xp: 40, claimed: ["company"] });
@@ -132,7 +132,7 @@ describe("company setup and mission rewards", () => {
       now,
     );
     expect(upgraded.progression!.claimed).toEqual(["company"]);
-    expect(upgraded.cash).toBe(old.cash + 100_000_000);
+    expect(upgraded.cash).toBe(old.cash + 2_000_000_000);
     expect(() =>
       applyCoreAction(upgraded, { type: "enableMissions" }, "other", now),
     ).toThrow("sudah aktif");
@@ -148,7 +148,7 @@ describe("company setup and mission rewards", () => {
     s.progression!.xp = 1000;
     expect(() => restoreCore(serializeCore(s))).toThrow("Progres misi");
     expect(CORE_ONBOARDING_MISSIONS.reduce((sum, m) => sum + m.cash, 0)).toBe(
-      590_000_000,
+      9_900_000_000,
     );
   });
 });

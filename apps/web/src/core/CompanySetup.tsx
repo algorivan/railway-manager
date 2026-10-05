@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { Warehouse, MapPin, ArrowRight, ArrowLeft } from "lucide-react";
-import { CORE_DEPOT_CITIES } from "@railway/game-data";
+import {
+  CORE_DEPOT_CITIES,
+  CORE_ONBOARDING_MISSIONS,
+} from "@railway/game-data";
 import { stationName, type CoreState } from "@railway/simulation";
 import { compact, money, type Act } from "./presentation";
 
@@ -20,6 +23,7 @@ export function CompanySetup({
   const [hub, setHub] = useState("");
   const [query, setQuery] = useState("");
   const city = CORE_DEPOT_CITIES.find((c) => c.id === cityId);
+  const reward = CORE_ONBOARDING_MISSIONS.find((m) => m.id === "company")!;
   return (
     <section className="company-setup" aria-labelledby="company-setup-title">
       <div className="company-setup-card">
@@ -98,11 +102,13 @@ export function CompanySetup({
               </div>
               <div>
                 <span>Hadiah misi perusahaan</span>
-                <b>+Rp100 jt · +40 XP</b>
+                <b>
+                  +{compact(reward.cash)} · +{reward.xp} XP
+                </b>
               </div>
               <div>
                 <span>Kas setelah pendirian + hadiah</span>
-                <b>{compact(state.cash - (city?.cost ?? 0) + 100_000_000)}</b>
+                <b>{compact(state.cash - (city?.cost ?? 0) + reward.cash)}</b>
               </div>
             </div>
             <div className="toolbar">

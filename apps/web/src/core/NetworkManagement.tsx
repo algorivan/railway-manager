@@ -91,6 +91,7 @@ export function NetworkManagement({
           ) : (
             <button
               className="primary"
+              disabled={!s.trainsets.length}
               onClick={() => act({ type: "access", segmentId: track })}
             >
               Buka koridor · Rp25 jt
@@ -111,13 +112,17 @@ export function NetworkManagement({
                 ))}
               </select>
             </label>
-            <button onClick={() => act({ type: "access", segmentId: section })}>
+            <button
+              disabled={!s.trainsets.length}
+              onClick={() => act({ type: "access", segmentId: section })}
+            >
               Buka bagian · Rp25 jt
             </button>
           </details>
           <p>
-            Ekspansi membutuhkan satu PP selesai dan sambungan dengan jaringan
-            Anda.
+            {s.trainsets.length
+              ? "Ekspansi terbuka. Pilih lintas yang tersambung dengan jaringan Anda."
+              : "Rakit trainset pertama untuk membuka ekspansi lintas."}
           </p>
         </Card>
       ) : (

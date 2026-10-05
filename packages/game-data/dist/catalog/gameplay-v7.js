@@ -170,7 +170,7 @@ export const CORE_CARGO_OFFERS = [
     {
         id: "oil",
         name: "Distribusi migas",
-        investment: 1_800_000_000,
+        investment: 6_000_000_000,
         paymentPerTonKm: 5000,
         bonus: 100_000_000,
         trips: 6,
@@ -179,7 +179,7 @@ export const CORE_CARGO_OFFERS = [
     {
         id: "mineral",
         name: "Angkutan mineral",
-        investment: 1_600_000_000,
+        investment: 5_500_000_000,
         paymentPerTonKm: 4200,
         bonus: 90_000_000,
         trips: 8,
@@ -188,17 +188,37 @@ export const CORE_CARGO_OFFERS = [
     {
         id: "logistics",
         name: "Logistik kontainer",
-        investment: 1_500_000_000,
+        investment: 5_000_000_000,
         paymentPerTonKm: 5500,
         bonus: 120_000_000,
         trips: 8,
         days: 5,
     },
 ];
-export const CORE_ECONOMY_VERSION = 2;
+export const CORE_ECONOMY_VERSION = 3;
+/** Existing contracts keep their original investment/penalty basis. */
+export const CORE_LEGACY_CARGO_INVESTMENT = {
+    oil: 1_800_000_000,
+    mineral: 1_600_000_000,
+    logistics: 1_500_000_000,
+};
 export const CORE_FARES = {
     EC: { boarding: 5000, perKm: 500, elasticity: 1.6 },
     EX: { boarding: 15000, perKm: 1000, elasticity: 0.75 },
     LX: { boarding: 30000, perKm: 2500, elasticity: 0.35 },
 };
+/** Suggested allocation of an offer, not an automatic purchase or cash reservation. */
+export function coreCargoInvestmentBudget(offerId) {
+    const offer = CORE_CARGO_OFFERS.find((o) => o.id === offerId);
+    const setupCost = CORE_PRODUCTS.find((p) => p.id === "cc201").price +
+        2 * CORE_PRODUCTS.find((p) => p.id === `cargo-${offerId}`).price;
+    const trainsets = 3, reserve = CORE_BALANCE.starterReserveCash * 2;
+    return {
+        trainsets,
+        setupCost,
+        fleetCost: setupCost * trainsets,
+        reserve,
+        networkBudget: Math.max(0, offer.investment - setupCost * trainsets - reserve),
+    };
+}
 //# sourceMappingURL=gameplay-v7.js.map

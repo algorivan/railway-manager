@@ -66,7 +66,7 @@ export declare const CORE_REFUEL_STATION_CODES: Set<string>;
 export declare const CORE_CARGO_OFFERS: readonly [{
     readonly id: "oil";
     readonly name: "Distribusi migas";
-    readonly investment: 1800000000;
+    readonly investment: 6000000000;
     readonly paymentPerTonKm: 5000;
     readonly bonus: 100000000;
     readonly trips: 6;
@@ -74,7 +74,7 @@ export declare const CORE_CARGO_OFFERS: readonly [{
 }, {
     readonly id: "mineral";
     readonly name: "Angkutan mineral";
-    readonly investment: 1600000000;
+    readonly investment: 5500000000;
     readonly paymentPerTonKm: 4200;
     readonly bonus: 90000000;
     readonly trips: 8;
@@ -82,13 +82,19 @@ export declare const CORE_CARGO_OFFERS: readonly [{
 }, {
     readonly id: "logistics";
     readonly name: "Logistik kontainer";
-    readonly investment: 1500000000;
+    readonly investment: 5000000000;
     readonly paymentPerTonKm: 5500;
     readonly bonus: 120000000;
     readonly trips: 8;
     readonly days: 5;
 }];
-export declare const CORE_ECONOMY_VERSION = 2;
+export declare const CORE_ECONOMY_VERSION = 3;
+/** Existing contracts keep their original investment/penalty basis. */
+export declare const CORE_LEGACY_CARGO_INVESTMENT: {
+    readonly oil: 1800000000;
+    readonly mineral: 1600000000;
+    readonly logistics: 1500000000;
+};
 export declare const CORE_FARES: {
     readonly EC: {
         readonly boarding: 5000;
@@ -105,5 +111,13 @@ export declare const CORE_FARES: {
         readonly perKm: 2500;
         readonly elasticity: 0.35;
     };
+};
+/** Suggested allocation of an offer, not an automatic purchase or cash reservation. */
+export declare function coreCargoInvestmentBudget(offerId: (typeof CORE_CARGO_OFFERS)[number]["id"]): {
+    trainsets: number;
+    setupCost: number;
+    fleetCost: number;
+    reserve: number;
+    networkBudget: number;
 };
 //# sourceMappingURL=gameplay-v7.d.ts.map

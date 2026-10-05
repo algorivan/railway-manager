@@ -3684,3 +3684,141 @@
     margin-top: 150px;
   }
 }
+
+/* Industry funding stays on one page; only its allocations/history scroll. */
+.game-card:has(.cargo-funding-workspace) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cargo-funding-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  flex: 1;
+}
+.cargo-offer-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  flex-shrink: 0;
+}
+.core-game .cargo-offer-cards button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 7px 3px;
+  min-width: 0;
+  font-size: 10px;
+}
+.cargo-offer-cards b {
+  font-size: 10px;
+}
+.cargo-offer-cards strong {
+  font-size: 14px;
+}
+.core-game .cargo-offer-cards button[aria-pressed="true"] {
+  background: #244f49;
+  color: white;
+}
+.cargo-funding-scroll {
+  flex: 1;
+  min-height: 0;
+  padding-right: 3px;
+}
+.cargo-investment-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  background: #eaf2ed;
+  border-radius: 9px;
+  margin-bottom: 8px;
+}
+.cargo-investment-hero small {
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+.cargo-investment-hero strong {
+  font-size: 29px;
+  line-height: 1.15;
+  color: #244f49;
+}
+.cargo-investment-hero span {
+  font-size: 10px;
+}
+.cargo-budget {
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+.cargo-budget > b {
+  font-size: 12px;
+  display: block;
+  margin-bottom: 4px;
+}
+.cargo-budget > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 11px;
+}
+.cargo-budget strong {
+  white-space: nowrap;
+}
+.cargo-budget .budget-surplus {
+  color: #267352;
+  border-top: 1px solid var(--line);
+  font-weight: 700;
+}
+.cargo-budget > small {
+  color: var(--muted);
+  font-size: 9px;
+}
+.cargo-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0;
+  font-size: 9px;
+}
+.cargo-steps span {
+  background: #eaf2ed;
+  padding: 4px;
+  border-radius: 4px;
+}
+.dialog-body .cargo-rate,
+.dialog-body .cargo-terms {
+  font-size: 10px;
+  line-height: 1.45;
+  margin: 7px 0;
+}
+.cargo-funding-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.cargo-funding-footer > small {
+  font-size: 10px;
+  color: var(--muted);
+}
+.cargo-funding-footer .primary {
+  min-height: 36px;
+}
+.cargo-existing .contract-progress {
+  border-top: 1px solid var(--line);
+  margin-top: 6px;
+  padding: 7px 0;
+}
+.cargo-existing .contract-progress span,
+.cargo-existing .contract-progress small {
+  display: block;
+  font-size: 10px;
+  margin-top: 4px;
+}

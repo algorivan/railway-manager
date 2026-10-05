@@ -1,4 +1,4 @@
-# Planning economy v2 and station classes
+# Planning economy v3 and station classes
 
 This revision keeps the existing clock (Realism 1× / Casual 1.5×). Progress comes from operating choices and industry funding, rather than time skips. Values below are gameplay balance, not claims about real procurement prices, tank sizes or financial returns.
 
@@ -17,7 +17,7 @@ The planner loads existing schedules and replaces them only after successful val
 ## Progression balance
 
 - New rolling-stock prices are 5% of the prior reference catalogue. CC201 is Rp900 million, Economy Standard Rp200 million and a generator Rp250 million.
-- Starter operating reserve increases from Rp150 million to Rp500 million; the existing one-time mission rewards remain up to Rp590 million.
+- Starter operating reserve is Rp500 million. Nine one-time mission rewards total Rp9.9 billion (XP remains 460): company Rp2B, complete starter order Rp1B, acceptance Rp500M, first formation Rp1.5B, crew Rp400M, fuel Rp500M, relation Rp1B, schedule Rp1B and first completed passenger service Rp2B. By first formation the player has earned Rp5B, enough to buy two additional Rp1.95B passenger trainsets, fuel all three and buy connected access while retaining a reserve. Later trainsets still require the existing delivery/acceptance process.
 - Vehicle tanks are 3× the original reference values. The starter CC201/generator stores 12,084 L combined. New depots hold 50,000 L. Existing saves retain actual stored fuel and their contracted capacity; no fuel or retroactive price refund is granted.
 - New nonstarter delivery: locomotive 120, cargo wagon 45, passenger/service vehicle 90 game minutes. Existing order deadlines and active maintenance jobs are preserved.
 - P1 takes 30 minutes for a locomotive and 15 minutes for other units; retrofit takes 90 minutes. Jobs still queue in the single maintenance bay. Retrofit costs 8% of the scaled donor price. Weight, length, maximum speed, seats and body are preserved from the reference catalogue.
@@ -30,9 +30,11 @@ Kantor → **Kontrak kargo** offers three one-time setup investments:
 
 | Industry | Setup investment | Payment / ton-km | Delivered outbound target | Deadline | Completion bonus |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Oil and gas | Rp1.8 billion | Rp5,000 | 6 | 4 game days | Rp100 million |
-| Minerals | Rp1.6 billion | Rp4,200 | 8 | 5 game days | Rp90 million |
-| Container logistics | Rp1.5 billion | Rp5,500 | 8 | 5 game days | Rp120 million |
+| Oil and gas | Rp6 billion | Rp5,000 | 6 | 4 game days | Rp100 million |
+| Minerals | Rp5.5 billion | Rp4,200 | 8 | 5 game days | Rp90 million |
+| Container logistics | Rp5 billion | Rp5,500 | 8 | 5 game days | Rp120 million |
+
+The investment page shows selectable industry cards, upfront funding and a suggested allocation: three CC201 + two matching 40-ton wagons each cost Rp3.18B; reserve Rp1B; remaining expansion capital is Rp1.82B / Rp1.32B / Rp820M for oil / minerals / logistics. Allocation is illustrative, not an automatic purchase. The accept button stays outside the scrolling details, with accepted-contract progress in the same page.
 
 Only one contract can be active. Each investment offer can be accepted once per company, including after expiry. The relation must cover at least 25 game rail kilometres on owned access and have no active plans or unresolved journeys; acceptance dedicates it to cargo with terminal-only stops. It cannot redirect an existing passenger operation.
 
@@ -43,6 +45,10 @@ Payment is posted once when cargo arrives before or at the deadline. Planned tri
 For the 160 km BD–GMR game corridor, two oil wagons deliver 80 t × 160 km × Rp5,000 = Rp64 million per loaded journey. The player's contribution subtracts both outbound and empty-return costs. Higher wagon capacity increases revenue but remains subject to length, traction, location and fuel checks.
 
 Investment, completion bonuses and mission rewards have stable separate ledger IDs with zero passenger revenue. Cargo settlement is linked to its contract and occurrence; run contribution includes cargo haulage without counting capital grants. Contract references, cargo metadata and the auto-refuel preference survive export/import; old v7 saves without them remain readable.
+
+## Existing-save funding upgrade
+
+Restore validates the full save before upgrading economy version 1/2 to 3. Each claimed mission receives only the difference between its new reward and recorded original cash (legacy defaults apply if its original ledger entry is absent). No additional XP or unclaimed milestone reward is created. Active legacy cargo contracts receive only the investment difference as a separate expansion grant; expired/completed contracts receive no top-up. Original contract investment remains the penalty basis, and targets, deadlines and delivered counts remain unchanged. New contracts explicitly record funding version 3; legacy contracts retain their original terms. Stable grant ledger IDs and the saved economy version prevent repeated payments on reload/import/offline catch-up. Capital grants remain excluded from operating revenue.
 
 ## Station classes and distance
 
@@ -64,7 +70,7 @@ Disconnected stations have no nearest hub/distance and use `near = 0`. Proximity
 
 ## Future leaderboard
 
-No public leaderboard or authoritative server is implemented in this browser-first build. New companies record economy version 2; old checkpoints without a version are legacy/mixed-balance companies. A later server should compare equal game-time windows and balance versions, with separate Realism/Casual cohorts. Suitable operating scores include delivered passenger/ton-kilometres, contribution after operating expenses and punctuality, excluding setup investment, mission rewards and completion gifts. Bank balance is unsuitable as the primary rank because capital grants are deliberate. A server must validate time, contracts and saves before browser-editable results can be ranked. Development expenses such as maintenance/marketing and late/recall costs must also be included when defining an operating-profit ranking.
+No public leaderboard or authoritative server is implemented in this browser-first build. New companies record economy version 3; old checkpoints without a version are legacy/mixed-balance companies. A later server should compare equal game-time windows and balance versions, with separate Realism/Casual cohorts. Suitable operating scores include delivered passenger/ton-kilometres, contribution after operating expenses and punctuality, excluding setup investment, mission rewards and completion gifts. Bank balance is unsuitable as the primary rank because capital grants are deliberate. A server must validate time, contracts and saves before browser-editable results can be ranked. Development expenses such as maintenance/marketing and late/recall costs must also be included when defining an operating-profit ranking.
 
 
 ## Catalogue, mission and map interaction
@@ -73,7 +79,7 @@ Pasar → Katalog uses locomotive, passenger/support-coach and cargo categories.
 
 The mission screen uses nine selectable tiles, current goal, XP/reward and one action button. Company setup retains explicit depot price and hub selection, with shorter copy. Station ambience is synthesized locally, with the first-quarter Westminster melody every 18 seconds, after a browser interaction. Suara mutes ambience, chimes and feedback together; hidden pages pause audio and timers. Live dispatch and terminal arrival transitions show distinct notifications and play the user-provided Westminster recording, bundled at /audio/westminster-chimes.mp3. A single shared /audio/train-running.mp3 loop plays while at least one run is moving; it pauses during dwell, holds, terminal arrival, mute and hidden tabs. Concurrent announcements share one clip. Loading or importing a save does not replay historical journey alerts. Audio remains optional and requires a browser gesture.
 
-Jadwal defaults to its leftmost Relasi tab. “Pilih asal & tujuan di peta” temporarily exposes the map, guides origin then destination, and returns to the retained relation form. Hover shows passenger catchment potential and remaining active cargo-contract deliveries and estimated tonnage; click/tap opens the same metrics and a selection button. Metrics are game values, not measured Indonesian station freight demand; no active contract means zero outstanding cargo. Tonnage is estimated from the assigned cargo trainset capacity, or the contract minimum of 80 tons when a trainset is not yet assigned; the contract target itself counts completed deliveries. Keyboard users may focus a station point and press Enter, or use the searchable station fields. “Perbesar area” separates nearby points. The map search focuses a station area without selecting an endpoint; the player still chooses the point and confirms in its popup. A route with unopened sections reports failure and offers “Buka & beli lintas”, retaining draft endpoints and stops while network management is open. Existing expansion eligibility (one completed PP, connected track, cash) still applies.
+Jadwal defaults to its leftmost Relasi tab. “Pilih asal & tujuan di peta” temporarily exposes the map, guides origin then destination, and returns to the retained relation form. Hover shows passenger catchment potential and remaining active cargo-contract deliveries and estimated tonnage; click/tap opens the same metrics and a selection button. Metrics are game values, not measured Indonesian station freight demand; no active contract means zero outstanding cargo. Tonnage is estimated from the assigned cargo trainset capacity, or the contract minimum of 80 tons when a trainset is not yet assigned; the contract target itself counts completed deliveries. Keyboard users may focus a station point and press Enter, or use the searchable station fields. “Perbesar area” separates nearby points. The map search focuses a station area without selecting an endpoint; the player still chooses the point and confirms in its popup. A route with unopened sections reports failure and offers “Buka & beli lintas”, retaining draft endpoints and stops while network management is open. Expansion opens once the first trainset is assembled. Connected-track and cash validation still apply; no completed PP is required.
 
 The scheduling footer estimates fuel for all draft departures including returns. Daily patterns show L/day; two/three-day patterns show the daily average plus total pattern fuel; one-off travel shows L/trip. It is a consumption forecast, not a fuel purchase or a guarantee of available tank/depot stock.
 

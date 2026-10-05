@@ -9,6 +9,8 @@ import { WorkloadCalculator } from "@railway/workforce";
 import {
   CORE_BALANCE as B,
   CORE_ECONOMY_VERSION,
+  CORE_LEGACY_MISSION_CASH,
+  CORE_LEGACY_CARGO_INVESTMENT,
   CORE_REFUEL_STATION_CODES,
   CORE_CARGO_OFFERS,
   stationPurposeTimeFactor,
@@ -94,6 +96,7 @@ export interface CoreCargoContract {
   delivered: number;
   target: number;
   investment: number;
+  fundingVersion?: 2 | 3;
   status: "active" | "completed" | "expired";
 }
 export interface CoreRun {
@@ -1854,6 +1857,7 @@ export function applyCoreAction(
         delivered: 0,
         target: offer.trips,
         investment: offer.investment,
+        fundingVersion: 3,
         status: "active",
       };
       (s.cargoContracts ??= []).push(contract);
@@ -2078,8 +2082,8 @@ export function applyCoreAction(
         !network.has(edge.destinationStationId)
       )
         throw new Error("Akses baru harus terhubung.");
-      if (s.runs.filter((r) => r.status === "completed").length < 2)
-        throw new Error("Selesaikan satu PP sebelum ekspansi.");
+      if (!s.trainsets.length)
+        throw new Error("Rakit trainset pertama sebelum membuka lintas baru.");
       accounting(s, id, "Hak akses koridor", -B.corridorAccessCost);
       s.access.push(edge.id);
       break;
@@ -2328,6 +2332,7 @@ const saveSchema = z.object({
         delivered: finite.int().nonnegative(),
         target: finite.int().positive(),
         investment: finite.nonnegative(),
+        fundingVersion: z.union([z.literal(2), z.literal(3)]).optional(),
         status: z.enum(["active", "completed", "expired"]),
       }),
     )
@@ -2428,7 +2433,10 @@ export function restoreCore(json: string): CoreState {
     if (
       !s.services.some((r) => r.id === c.serviceId) ||
       c.target !== offer.trips ||
-      c.investment !== offer.investment ||
+      c.investment !==
+        (c.fundingVersion === 3
+          ? offer.investment
+          : CORE_LEGACY_CARGO_INVESTMENT[c.offerId]) ||
       c.delivered > c.target ||
       c.deadline !== c.acceptedAt + offer.days * 1440 ||
       (c.status === "completed" && c.delivered !== c.target)
@@ -2459,6 +2467,36 @@ export function restoreCore(json: string): CoreState {
     )
       throw new Error("Occurrence save tidak konsisten.");
     r.nextEvent = r.status === "running" ? r.nextEvent : Infinity;
+  }
+  if ((s.economyVersion ?? 1) < 3) {
+    for (const mission of CORE_ONBOARDING_MISSIONS) {
+      if (!s.progression?.claimed.includes(mission.id)) continue;
+      const paid =
+        s.ledger.find((e) => e.id === `mission:${mission.id}`)?.cash ??
+        CORE_LEGACY_MISSION_CASH[mission.id];
+      const extra = Math.max(0, mission.cash - paid);
+      if (extra)
+        accounting(
+          s,
+          `mission:funding-v3:${mission.id}`,
+          `Tambahan modal misi • ${mission.title}`,
+          extra,
+        );
+    }
+    for (const contract of s.cargoContracts ?? []) {
+      if (contract.status !== "active") continue;
+      const offer = CORE_CARGO_OFFERS.find((o) => o.id === contract.offerId)!;
+      const extra = Math.max(0, offer.investment - contract.investment);
+      if (extra)
+        accounting(
+          s,
+          `cargo-expansion:${contract.id}`,
+          `Tambahan modal ekspansi • ${offer.name}`,
+          extra,
+        );
+      // Preserve the original penalty basis, target, deadline and delivered trips.
+    }
+    s.economyVersion = CORE_ECONOMY_VERSION;
   }
   return s;
 }
