@@ -23,6 +23,13 @@ corepack pnpm test --concurrency=2
 
 The app saves to browser storage. Use **Kantor → Ekspor save / Impor save** to move checkpoints between devices. Realism advances at 1× and Casual at 1.5×, including offline catch-up. No server or credentials are required. There are no real payments.
 
+**Campaign → Jalur Kepercayaan** opens a five-chapter scenario season with two
+approaches per chapter, character callbacks, actual operating objectives, and a
+decision journal. New companies start at its first briefing; existing companies
+can opt in. Active approaches can be revised without resetting run evidence.
+The original starter checklist remains under **Misi operasional**. See
+[story campaign design and validation](docs/STORY_CAMPAIGN.md).
+
 ## First service
 
 1. Choose a depot city and its contract cost, then a compatible first hub. Mission onboarding guides the remaining steps.

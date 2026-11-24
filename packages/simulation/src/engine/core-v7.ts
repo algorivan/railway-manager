@@ -7,6 +7,11 @@ import {
 } from "./train-motion.js";
 import { WorkloadCalculator } from "@railway/workforce";
 import {
+  startStoryCampaign, chooseStoryApproach, continueStoryCampaign, replanStoryApproach,
+  settleStoryCampaign, coreStoryXp, storyProgressSchema, validateStoryProgress,
+  type StoryProgress,
+} from "./story-campaign.js";
+import {
   CORE_BALANCE as B,
   CORE_ECONOMY_VERSION,
   CORE_LEGACY_MISSION_CASH,
@@ -147,6 +152,7 @@ export interface CoreState {
   economyVersion?: number;
   companyStarted?: boolean;
   progression?: { xp: number; claimed: OnboardingMissionId[] };
+  story?: StoryProgress;
   minute: number;
   anchorMs: number;
   mode: "Realism" | "Casual";
@@ -342,7 +348,7 @@ function awardMissions(s: CoreState) {
   }
 }
 export function coreLevel(s: CoreState) {
-  const xp = s.progression?.xp ?? 0;
+  const xp = (s.progression?.xp ?? 0) + coreStoryXp(s);
   return {
     level: 1 + Math.floor(xp / 100),
     xp,
@@ -1261,6 +1267,7 @@ function advanceOwned(s: CoreState, target: number) {
       );
       s.nextOverhead += 1440;
     }
+    settleStoryCampaign(s, (id, label, cash) => accounting(s, id, label, cash));
   }
   s.minute = target;
 }
@@ -1270,11 +1277,16 @@ export function catchUpCore(state: CoreState, now: number): CoreState {
   advanceOwned(s, s.minute + (delta / 60000) * pace(s));
   s.anchorMs = Math.max(now, s.anchorMs);
   awardMissions(s);
+  settleStoryCampaign(s, (id, label, cash) => accounting(s, id, label, cash));
   return s;
 }
 export type CoreAction =
   | { type: "foundCompany"; cityId: string; hubStationId: string }
   | { type: "enableMissions" }
+  | { type: "startStory" }
+  | { type: "storyChoice"; choiceId: string }
+  | { type: "storyReplan"; choiceId: string }
+  | { type: "continueStory" }
   | { type: "hub"; station: string }
   | {
       type: "order";
@@ -1423,6 +1435,23 @@ export function applyCoreAction(
       ];
       s.access = starterTrackAccess(s.hub);
       s.companyStarted = true;
+      startStoryCampaign(s);
+      break;
+    }
+    case "startStory": {
+      startStoryCampaign(s);
+      break;
+    }
+    case "storyChoice": {
+      chooseStoryApproach(s, action.choiceId);
+      break;
+    }
+    case "continueStory": {
+      continueStoryCampaign(s);
+      break;
+    }
+    case "storyReplan": {
+      replanStoryApproach(s, action.choiceId);
       break;
     }
     case "enableMissions": {
@@ -2123,6 +2152,7 @@ export function applyCoreAction(
   }
   s.actions.push(id);
   awardMissions(s);
+  settleStoryCampaign(s, (key, label, cash) => accounting(s, key, label, cash));
   return s;
 }
 
@@ -2220,6 +2250,7 @@ const saveSchema = z.object({
   version: z.literal(7),
   economyVersion: finite.int().positive().optional(),
   companyStarted: z.boolean().optional(),
+  story: storyProgressSchema.optional(),
   progression: z
     .object({
       xp: finite.int().nonnegative(),
@@ -2498,6 +2529,7 @@ export function restoreCore(json: string): CoreState {
     }
     s.economyVersion = CORE_ECONOMY_VERSION;
   }
+  validateStoryProgress(s);
   return s;
 }
 /** Forecast processes a copy. It cannot advance the company clock or award cash. */

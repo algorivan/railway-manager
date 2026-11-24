@@ -27,7 +27,7 @@ export function CompanySetup({
   return (
     <section className="company-setup" aria-labelledby="company-setup-title">
       <div className="company-setup-card">
-        <small>MISI 1 DARI 9 · DIRIKAN DEPO & PILIH HUB</small>
+        <small>PROLOG · DIRIKAN DEPO & PILIH HUB</small>
         <h1 id="company-setup-title">Mulai dari depo Anda.</h1>
         <div className="wizard-steps">
           <span className={stage === 1 ? "active" : ""}>

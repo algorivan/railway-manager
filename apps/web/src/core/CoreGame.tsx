@@ -1,19 +1,10 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
-  Map as MapIcon,
-  CalendarDays,
-  TrainFront,
-  Store,
-  Building2,
   ArrowRight,
   AlertTriangle,
-  BookOpen,
-  Volume2,
-  VolumeX,
   ChevronLeft,
   ChevronRight,
   ArrowLeft,
-  Warehouse,
 } from "lucide-react";
 import {
   CORE_SELECTABLE_STATIONS as stations,
@@ -48,9 +39,11 @@ import { CompanySetup } from "./CompanySetup";
 import { FleetMonitor } from "./FleetMonitor";
 import { TrainJourneyDetails } from "./TrainJourneyDetails";
 import { GameHeader } from "./GameHeader";
+import { GameDock } from "./GameDock";
 import { ManagementDialog } from "./Compact";
 import { NetworkManagement } from "./NetworkManagement";
 import "./core.css";
+import "./mobile.css";
 const TUTORIAL_KEY = "railway-manager-tutorial-v1";
 const CoreMap = lazy(() =>
   import("./CoreMap").then((module) => ({ default: module.CoreMap })),
@@ -91,7 +84,9 @@ export default function CoreGame() {
   const [screen, setScreen] = useState<Screen>(() =>
     readPreference(TUTORIAL_KEY) ? "fleet" : "tutorial",
   );
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(
+    () => !window.matchMedia("(max-width: 700px), (max-height: 500px) and (pointer: coarse)").matches,
+  );
   const [detailTrainsetId, setDetailTrainsetId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(
     () => !readPreference(TUTORIAL_KEY),
@@ -151,6 +146,10 @@ export default function CoreGame() {
     };
   }, []);
   const notifyJourneys = (before: CoreState, next: CoreState) => {
+    const storyCompletions = (next.story?.history.length ?? 0) - (before.story?.history.length ?? 0);
+    if (storyCompletions > 0) {
+      feedback.notify("Tujuan bab terpenuhi. Dana bab dan XP diterima; buka Campaign untuk membaca kelanjutan cerita.", false, false, "Bab campaign selesai");
+    }
     const events = journeyEvents(before, next);
     const recent = events.slice(-3);
     for (const event of recent) {
@@ -311,14 +310,6 @@ export default function CoreGame() {
       setImporting(false);
     }
   };
-  const nav = [
-    { id: "map", label: "Peta", icon: MapIcon },
-    { id: "schedule", label: "Jadwal", icon: CalendarDays },
-    { id: "fleet", label: "Armada", icon: TrainFront },
-    { id: "market", label: "Pasar", icon: Store },
-    { id: "office", label: "Kantor", icon: Building2 },
-    { id: "tutorial", label: "Tutorial", icon: BookOpen },
-  ] as const;
   if (state.companyStarted === false && !saveBlocked)
     return (
       <main className="core-game">
@@ -333,7 +324,7 @@ export default function CoreGame() {
     );
   return (
     <main
-      className={`core-game ${open ? "sidebar-open" : "sidebar-collapsed"} ${mapPicking ? "station-picking" : ""}`}
+      className={`core-game ${open ? "sidebar-open" : "sidebar-collapsed"} ${modalOpen ? "management-open" : ""} ${mapPicking ? "station-picking" : ""}`}
     >
       <Suspense
         fallback={
@@ -400,7 +391,7 @@ export default function CoreGame() {
                   : screen === "office"
                     ? "Kantor perusahaan"
                     : screen === "tutorial"
-                      ? "Misi & panduan"
+                      ? "Campaign & panduan"
                       : fleetView === "depot"
                         ? "Depo & inventori"
                         : "Kelola armada"
@@ -492,42 +483,11 @@ export default function CoreGame() {
           onClick={() => setOpen(true)}
         >
           <ChevronRight size={22} />
+          <span className="sidebar-expand-label">Pantau</span>
         </button>
       )}
-      <nav className="game-dock" aria-label="Menu utama">
-        {nav.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            aria-label={label}
-            aria-current={screen === id && modalOpen ? "page" : undefined}
-            className={screen === id && modalOpen ? "active" : ""}
-            onClick={() => go(id)}
-          >
-            <Icon size={20} />
-            <span>{label}</span>
-          </button>
-        ))}
-        <button
-          aria-label="Depo"
-          className={
-            screen === "fleet" && fleetView === "depot" && modalOpen
-              ? "active"
-              : ""
-          }
-          onClick={() => go("fleet", "depot")}
-        >
-          <Warehouse size={22} />
-          <span>Depo</span>
-        </button>
-        <button
-          aria-label={feedback.sound ? "Nonaktifkan suara" : "Aktifkan suara"}
-          aria-pressed={feedback.sound}
-          onClick={feedback.toggleSound}
-        >
-          {feedback.sound ? <Volume2 size={20} /> : <VolumeX size={20} />}
-          <span>Suara</span>
-        </button>
-      </nav>
+      <GameDock screen={screen} depot={fleetView === "depot"} open={modalOpen}
+        go={go} sound={feedback.sound} toggleSound={feedback.toggleSound} />
       {importing && (
         <div className="import-loading" role="status">
           <span className="loading-spinner" />

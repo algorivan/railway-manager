@@ -24,3 +24,5 @@ export * from "./catalog/east-java.js";
 export * from "./catalog/station-class.js";
 
 export * from "./catalog/section-speeds.js";
+export * from "./catalog/story-campaign.js";
+export * from "./catalog/story-validation.js";

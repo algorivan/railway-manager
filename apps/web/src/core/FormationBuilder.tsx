@@ -313,6 +313,7 @@ export function FormationBuilder({
             <small>Panjang</small>
           </div>
         </div>
+        <p className="builder-touch-hint">Ketuk unit untuk memilih, lalu ketuk area rangkaian untuk meletakkan. Seret untuk mengubah urutan.</p>
         <div className="builder-zones">
           <section
             className={`builder-zone ${hover?.startsWith("formation:") ? "drop-over" : ""}`}
