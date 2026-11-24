@@ -6,6 +6,7 @@ import {
   type CoreState,
 } from "@railway/simulation";
 import { Card, compact, type Act, type Screen } from "./presentation";
+import { StoryCampaign } from "./StoryCampaign";
 export const TUTORIAL_KEY = "railway-manager-tutorial-v1";
 const cues: Record<string, string> = {
   company: "Pilih kota depo → hub.",
@@ -33,6 +34,7 @@ export function Tutorial({
   toggleSound: () => void;
   onContinue: () => void;
 }) {
+  const [view, setView] = useState<"story" | "guide">("story");
   const missions = coreMissionStatus(s),
     current = missions.findIndex((m) => !m.completed),
     [selection, setSelection] = useState<string | null>(null),
@@ -43,6 +45,12 @@ export function Tutorial({
     level = coreLevel(s),
     completed = missions.filter((m) => m.completed).length;
   return (
+    <>
+      <div className="campaign-tabs" aria-label="Campaign dan panduan">
+        <button aria-pressed={view === "story"} onClick={() => setView("story")}>Campaign cerita</button>
+        <button aria-pressed={view === "guide"} onClick={() => setView("guide")}>Misi operasional</button>
+      </div>
+      {view === "story" ? <div className="campaign-scroll"><StoryCampaign state={s} act={act} go={go} onContinue={onContinue} /></div> : (
     <Card title="Misi perjalanan pertama" className="mission-workspace">
       <div className="mission-summary">
         <b>
@@ -109,5 +117,7 @@ export function Tutorial({
         </button>
       </div>
     </Card>
+      )}
+    </>
   );
 }

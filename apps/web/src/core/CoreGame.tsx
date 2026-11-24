@@ -146,6 +146,10 @@ export default function CoreGame() {
     };
   }, []);
   const notifyJourneys = (before: CoreState, next: CoreState) => {
+    const storyCompletions = (next.story?.history.length ?? 0) - (before.story?.history.length ?? 0);
+    if (storyCompletions > 0) {
+      feedback.notify("Tujuan bab terpenuhi. Dana bab dan XP diterima; buka Campaign untuk membaca kelanjutan cerita.", false, false, "Bab campaign selesai");
+    }
     const events = journeyEvents(before, next);
     const recent = events.slice(-3);
     for (const event of recent) {
@@ -387,7 +391,7 @@ export default function CoreGame() {
                   : screen === "office"
                     ? "Kantor perusahaan"
                     : screen === "tutorial"
-                      ? "Misi & panduan"
+                      ? "Campaign & panduan"
                       : fleetView === "depot"
                         ? "Depo & inventori"
                         : "Kelola armada"

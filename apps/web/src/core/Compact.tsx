@@ -129,7 +129,7 @@ export function ManagementDialog({
           </div>
           {returnToMissions && (
             <button className="tutorial-return" onClick={returnToMissions}>
-              ← Kembali ke misi
+              ← Kembali ke campaign
             </button>
           )}
           <span className={dirty ? "draft-status dirty" : "draft-status"}>

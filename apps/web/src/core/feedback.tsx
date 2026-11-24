@@ -22,6 +22,10 @@ export const actionMessages: Record<CoreAction["type"], string> = {
   foundCompany:
     "Depo didirikan dan hub pertama ditetapkan. Perusahaan siap beroperasi.",
   enableMissions: "Misi dan reward perusahaan diaktifkan.",
+  startStory: "Campaign Jalur Kepercayaan dimulai.",
+  storyChoice: "Pendekatan dipilih. Tujuan bab mulai dihitung dari sekarang.",
+  storyReplan: "Pendekatan ditinjau ulang. Riwayat dinas sejak awal bab tetap diperhitungkan.",
+  continueStory: "Kelanjutan cerita dibuka. Tinjau situasi dan pilih pendekatan berikutnya.",
   hub: "Hub awal dipilih.",
   order: "Pesanan tercatat. Terima sarana setelah siap.",
   orderCart: "Checkout berhasil. Pesanan tercatat untuk depo penerima.",

@@ -48,9 +48,9 @@ export function GameDock({ screen, depot, open, go, sound, toggleSound }: {
   const secondary = (mobile: boolean) => (
     <>
       <button className={`${!mobile ? "dock-secondary " : ""}${screen === "tutorial" && open ? "active" : ""}`}
-        aria-label="Tutorial" aria-current={screen === "tutorial" && open ? "page" : undefined}
+        aria-label="Campaign" aria-current={screen === "tutorial" && open ? "page" : undefined}
         onClick={() => visit("tutorial")}>
-        <BookOpen size={20} /><span>{mobile ? "Misi & panduan" : "Tutorial"}</span>
+        <BookOpen size={20} /><span>Campaign</span>
       </button>
       <button className={`${!mobile ? "dock-secondary " : ""}${screen === "fleet" && depot && open ? "active" : ""}`}
         aria-label="Depo" onClick={() => visit("fleet", "depot")}>
